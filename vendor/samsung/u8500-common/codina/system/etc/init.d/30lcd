@@ -1,0 +1,8 @@
+#!/system/bin/sh
+
+TYPE=$(cat /sys/kernel/mcde/lcdclk | grep -c "S6D")
+
+if [ "$TYPE" == "1" ] ; then
+	# use this to override kernel defaults if needed
+	echo 1 > /sys/kernel/mcde/lcdclk
+fi

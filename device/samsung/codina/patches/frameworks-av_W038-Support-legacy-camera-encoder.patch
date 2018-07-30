@@ -1,0 +1,30 @@
+Subject: [PATCH] libstagefright: Support for legacy camera/encoder buffers
+
+diff --git a/media/libstagefright/CameraSource.cpp b/media/libstagefright/CameraSource.cpp
+index d7798fa..467ffbc 100644
+--- a/media/libstagefright/CameraSource.cpp
++++ b/media/libstagefright/CameraSource.cpp
+@@ -1316,10 +1316,6 @@ void CameraSource::processBufferQueueFrame(BufferItem& buffer) {
+ MetadataBufferType CameraSource::metaDataStoredInVideoBuffers() const {
+     ALOGV("metaDataStoredInVideoBuffers");
+ 
+-#ifdef CAMCORDER_GRALLOC_SOURCE
+-    return kMetadataBufferTypeGrallocSource;
+-#endif
+-
+     // Output buffers will contain metadata if camera sends us buffer in metadata mode or via
+     // buffer queue.
+     switch (mVideoBufferMode) {
+diff --git a/media/libstagefright/CameraSource.cpp b/media/libstagefright/CameraSource.cpp
+index d4b001980..9922e4d6b 100644
+--- a/media/libstagefright/CameraSource.cpp
++++ b/media/libstagefright/CameraSource.cpp
+@@ -1319,7 +1319,7 @@ MetadataBufferType CameraSource::metaDataStoredInVideoBuffers() const {
+     // Output buffers will contain metadata if camera sends us buffer in metadata mode or via
+     // buffer queue.
+     switch (mVideoBufferMode) {
+-#ifndef EXYNOS4_ENHANCEMENTS
++#ifndef STE_HARDWARE
+         case hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA:
+             return kMetadataBufferTypeNativeHandleSource;
+ #endif

@@ -1,0 +1,15 @@
+ Fix FramebufferNativeWindow
+
+diff --git a/services/surfaceflinger/DisplayDevice.cpp b/services/surfaceflinger/DisplayDevice.cpp
+index 01122da..064e105 100644
+--- a/services/surfaceflinger/DisplayDevice.cpp
++++ b/services/surfaceflinger/DisplayDevice.cpp
+@@ -183,7 +183,7 @@ DisplayDevice::DisplayDevice(
+     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
+ 
+ #ifdef NUM_FRAMEBUFFER_SURFACE_BUFFERS
+-    surface->allocateBuffers();
++    mSurface->allocateBuffers();
+ #endif
+ }
+ 

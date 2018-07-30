@@ -1,0 +1,173 @@
+ Improve color selection preview
+
+ - Primary color is connected to bg color, so preview both in the circle
+ - Don't view app drawer and messenger preview, since those aren't
+   touched by this either way
+
+diff --git a/res/drawable/color_circle_bottom.xml b/res/drawable/color_circle_bottom.xml
+new file mode 100644
+index 0000000000..62608fb9fa
+--- /dev/null
++++ b/res/drawable/color_circle_bottom.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<clip
++    xmlns:android="http://schemas.android.com/apk/res/android"
++    android:drawable="@drawable/color_circle"
++    android:clipOrientation="vertical"
++    android:gravity="bottom"/>
+diff --git a/res/drawable/color_circle_top.xml b/res/drawable/color_circle_top.xml
+new file mode 100644
+index 0000000000..63608fb9fa
+--- /dev/null
++++ b/res/drawable/color_circle_top.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<clip
++    xmlns:android="http://schemas.android.com/apk/res/android"
++    android:drawable="@drawable/color_circle"
++    android:clipOrientation="vertical"
++    android:gravity="top"/>
+diff --git a/res/drawable/ic_check_accent.xml b/res/drawable/ic_check_accent.xml
+new file mode 100644
+index 0000000000..64608fb9fa
+--- /dev/null
++++ b/res/drawable/ic_check_accent.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2016 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="20dp"
++    android:height="20dp"
++    android:viewportWidth="20"
++    android:viewportHeight="20">
++
++    <path
++        android:fillColor="?android:attr/colorAccent"
++        android:pathData="M7.5 13.5L4 10l-1.17 1.17 4.67 4.66 10-10-1.17-1.16z"/>
++
++</vector>
+diff --git a/res/values/cm_arrays.xml b/res/values/cm_arrays.xml
+index 476b1c22ef..754e2f0021 100644
+--- a/res/values/cm_arrays.xml
++++ b/res/values/cm_arrays.xml
+@@ -308,6 +308,13 @@
+         <item>@*android:color/dark_primary_color</item>
+     </integer-array>
+ 
++    <integer-array name="background_colors">
++        <item>@*android:color/background_material_light</item>
++        <item>@*android:color/grey_primary_color</item>
++        <item>@*android:color/background_material_light</item>
++        <item>@*android:color/dark_primary_color</item>
++    </integer-array>
++
+     <integer-array name="accent_colors">
+         <item>@*android:color/accent_device_default_light</item>
+         <item>@*android:color/green_accent_color</item>
+diff --git a/src/com/android/settings/PreviewSeekBarPreferenceFragment.java b/src/com/android/settings/PreviewSeekBarPreferenceFragment.java
+index 8158c80b36..d602316402 100644
+--- a/src/com/android/settings/PreviewSeekBarPreferenceFragment.java
++++ b/src/com/android/settings/PreviewSeekBarPreferenceFragment.java
+@@ -18,6 +18,9 @@
+ 
+ import android.content.Context;
+ import android.content.res.Configuration;
++import android.graphics.drawable.ClipDrawable;
++import android.graphics.drawable.Drawable;
++import android.graphics.drawable.LayerDrawable;
+ import android.os.Bundle;
+ import android.provider.Settings;
+ import android.support.v4.view.ViewPager;
+@@ -124,7 +127,8 @@ protected void switchPalette() {
+         }
+     }
+ 
+-    private void switchPalette(int[] colors, int colorValue) {
++    private void switchPalette(int[] colors, int[] bottomColors, int colorValue,
++                               int selectedResId) {
+         float sideMargin = getContext().getResources().getDimensionPixelSize(
+                 R.dimen.theme_color_margin_side);
+         mGrid.removeAllViews();
+@@ -137,10 +141,16 @@ private void switchPalette(int[] colors, int colorValue) {
+             final int count = i;
+             final boolean selected = colorValue == i;
+             final ImageView view = new ImageView(getContext());
+-            view.setImageDrawable(getContext().getDrawable(R.drawable.color_circle));
+-            view.setColorFilter(color);
++            Drawable[] circleLayers = new Drawable[2];
++            circleLayers[0] = getContext().getDrawable(R.drawable.color_circle_bottom);
++            circleLayers[1] = getContext().getDrawable(R.drawable.color_circle_top);
++            circleLayers[0].setTint(bottomColors[i]);
++            circleLayers[1].setTint(color);
++            ((ClipDrawable) circleLayers[0]).setLevel(5000);
++            ((ClipDrawable) circleLayers[1]).setLevel(5000);
++            view.setImageDrawable(new LayerDrawable(circleLayers));
+             if (selected) {
+-                view.setForeground(getContext().getDrawable(R.drawable.ic_check));
++                view.setForeground(getContext().getDrawable(selectedResId));
+                 view.setForegroundGravity(Gravity.CENTER);
+             }
+             view.setOnClickListener(new OnClickListener() {
+@@ -179,11 +189,14 @@ public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                     R.array.accent_colors);
+             final int[] primaryColors = getContext().getResources().getIntArray(
+                     R.array.primary_colors);
++            final int[] bgColors = getContext().getResources().getIntArray(
++                    R.array.background_colors);
+             if (mAccentShowing) {
+-                switchPalette(accentColors, mAccentColorValue);
++                switchPalette(accentColors, accentColors, mAccentColorValue, R.drawable.ic_check);
+                 getActivity().setTitle(R.string.theme_accent_color);
+             } else {
+-                switchPalette(primaryColors, mPrimaryColorValue);
++                switchPalette(primaryColors, bgColors, mPrimaryColorValue,
++                        R.drawable.ic_check_accent);
+                 getActivity().setTitle(R.string.theme_primary_color);
+             }
+             mAnimation = AnimationUtils.loadAnimation(getContext(),
+@@ -194,11 +207,13 @@ public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                 public void onAnimationStart(Animation animation) {
+                     if (!mAccentShowing) {
+                         mAccentShowing = true;
+-                        switchPalette(accentColors, mAccentColorValue);
++                        switchPalette(accentColors, accentColors, mAccentColorValue,
++                                R.drawable.ic_check);
+                         getActivity().setTitle(R.string.theme_accent_color);
+                     } else {
+                         mAccentShowing = false;
+-                        switchPalette(primaryColors, mPrimaryColorValue);
++                        switchPalette(primaryColors, bgColors, mPrimaryColorValue,
++                                R.drawable.ic_check_accent);
+                         getActivity().setTitle(R.string.theme_primary_color);
+                     }
+                     Settings.Secure.putInt(getContext().getContentResolver(),
+diff --git a/src/com/android/settings/display/ThemeSettings.java b/src/com/android/settings/display/ThemeSettings.java
+index b51f92ae54..37d4aacb5a 100644
+--- a/src/com/android/settings/display/ThemeSettings.java
++++ b/src/com/android/settings/display/ThemeSettings.java
+@@ -46,8 +46,8 @@ public void onCreate(@Nullable Bundle savedInstanceState) {
+ 
+         mActivityLayoutResId = R.layout.theme_activity;
+ 
+-        mPreviewSampleResIds = new int[]{R.layout.screen_zoom_preview_1,
+-                R.layout.screen_zoom_preview_2,
++        mPreviewSampleResIds = new int[]{/*R.layout.screen_zoom_preview_1,
++                R.layout.screen_zoom_preview_2,*/
+                 R.layout.screen_zoom_preview_settings};
+ 
+         mEntries = getResources().getStringArray(R.array.color_name);

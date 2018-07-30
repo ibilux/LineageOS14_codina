@@ -1,0 +1,26 @@
+Subject: [PATCH 11/13] sepolicy: add file and domain trans to interfacer
+
+This will fix bootanimations not applying on 7.1.2 ROMs
+
+diff --git a/interfacer.te b/interfacer.te
+index 45dcd6b..a5ba1d7 100644
+--- a/interfacer.te
++++ b/interfacer.te
+@@ -61,3 +61,8 @@ allow interfacer display_service:service_manager find;
+ allow interfacer mount_service:service_manager find;
+ allow interfacer network_management_service:service_manager find;
+ allow interfacer overlay_service:service_manager find;
++
++# Allow file and type transition for contexts
++type_transition interfacer system_data_file:file theme_data_file "theme";
++type_transition interfacer system_data_file:dir theme_data_file;
++file_type_auto_trans(interfacer, system_data_file, theme_data_file);
+diff --git a/untrusted_app.te b/untrusted_app.te
+index c2a5320..8dd0f3f 100644
+--- a/untrusted_app.te
++++ b/untrusted_app.te
+@@ -218,3 +218,4 @@ neverallow untrusted_app tun_device:chr_file open;
+ # Only allow appending to /data/anr/traces.txt (b/27853304, b/18340553)
+ neverallow untrusted_app anr_data_file:file ~{ open append };
+ neverallow untrusted_app anr_data_file:dir ~search;
++allow untrusted_app system_app_data_file:dir getattr;

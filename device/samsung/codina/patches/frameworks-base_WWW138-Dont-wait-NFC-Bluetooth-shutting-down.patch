@@ -1,0 +1,134 @@
+Subject: [PATCH] Don't wait for NFC Bluetooth when shutting down.
+NFC Bluetooth doesn't store any state before powering off, and hence it is okay to
+not wait for it while shutting down.
+
+diff --git a/services/core/java/com/android/server/power/ShutdownThread.java b/services/core/java/com/android/server/power/ShutdownThread.java
+index 853e1b2..72b2211 100644
+--- a/services/core/java/com/android/server/power/ShutdownThread.java
++++ b/services/core/java/com/android/server/power/ShutdownThread.java
+@@ -25,11 +25,7 @@
+ import android.app.IActivityManager;
+ import android.app.KeyguardManager;
+ import android.app.ProgressDialog;
+-import android.bluetooth.BluetoothAdapter;
+-import android.bluetooth.IBluetoothManager;
+ import android.media.AudioAttributes;
+-import android.nfc.NfcAdapter;
+-import android.nfc.INfcAdapter;
+ import android.content.BroadcastReceiver;
+ import android.content.Context;
+ import android.content.DialogInterface;
+@@ -655,41 +651,10 @@ private void shutdownRadios(final int timeout) {
+         final boolean[] done = new boolean[1];
+         Thread t = new Thread() {
+             public void run() {
+-                boolean nfcOff;
+-                boolean bluetoothOff;
+                 boolean radioOff;
+ 
+-                final INfcAdapter nfc =
+-                        INfcAdapter.Stub.asInterface(ServiceManager.checkService("nfc"));
+                 final ITelephony phone =
+                         ITelephony.Stub.asInterface(ServiceManager.checkService("phone"));
+-                final IBluetoothManager bluetooth =
+-                        IBluetoothManager.Stub.asInterface(ServiceManager.checkService(
+-                                BluetoothAdapter.BLUETOOTH_MANAGER_SERVICE));
+-
+-                try {
+-                    nfcOff = nfc == null ||
+-                             nfc.getState() == NfcAdapter.STATE_OFF;
+-                    if (!nfcOff) {
+-                        Log.w(TAG, "Turning off NFC...");
+-                        nfc.disable(false); // Don't persist new state
+-                    }
+-                } catch (RemoteException ex) {
+-                Log.e(TAG, "RemoteException during NFC shutdown", ex);
+-                    nfcOff = true;
+-                }
+-
+-                try {
+-                    bluetoothOff = bluetooth == null ||
+-                            bluetooth.getState() == BluetoothAdapter.STATE_OFF;
+-                    if (!bluetoothOff) {
+-                        Log.w(TAG, "Disabling Bluetooth...");
+-                        bluetooth.disable(mContext.getPackageName(), false);  // disable but don't persist new state
+-                    }
+-                } catch (RemoteException ex) {
+-                    Log.e(TAG, "RemoteException during bluetooth shutdown", ex);
+-                    bluetoothOff = true;
+-                }
+ 
+                 try {
+                     radioOff = phone == null || !phone.needMobileRadioShutdown();
+@@ -702,7 +667,7 @@ public void run() {
+                     radioOff = true;
+                 }
+ 
+-                Log.i(TAG, "Waiting for NFC, Bluetooth and Radio...");
++                Log.i(TAG, "Waiting for Radio...");
+ 
+                 long delay = endTime - SystemClock.elapsedRealtime();
+                 while (delay > 0) {
+@@ -713,17 +678,6 @@ public void run() {
+                         sInstance.setRebootProgress(status, null);
+                     }
+ 
+-                    if (!bluetoothOff) {
+-                        try {
+-                            bluetoothOff = bluetooth.getState() == BluetoothAdapter.STATE_OFF;
+-                        } catch (RemoteException ex) {
+-                            Log.e(TAG, "RemoteException during bluetooth shutdown", ex);
+-                            bluetoothOff = true;
+-                        }
+-                        if (bluetoothOff) {
+-                            Log.i(TAG, "Bluetooth turned off.");
+-                        }
+-                    }
+                     if (!radioOff) {
+                         try {
+                             radioOff = !phone.needMobileRadioShutdown();
+@@ -735,20 +689,9 @@ public void run() {
+                             Log.i(TAG, "Radio turned off.");
+                         }
+                     }
+-                    if (!nfcOff) {
+-                        try {
+-                            nfcOff = nfc.getState() == NfcAdapter.STATE_OFF;
+-                        } catch (RemoteException ex) {
+-                            Log.e(TAG, "RemoteException during NFC shutdown", ex);
+-                            nfcOff = true;
+-                        }
+-                        if (nfcOff) {
+-                            Log.i(TAG, "NFC turned off.");
+-                        }
+-                    }
+ 
+-                    if (radioOff && bluetoothOff && nfcOff) {
+-                        Log.i(TAG, "NFC, Radio and Bluetooth shutdown complete.");
++                    if (radioOff) {
++                        Log.i(TAG, "Radio shutdown complete.");
+                         done[0] = true;
+                         break;
+                     }
+@@ -765,7 +708,7 @@ public void run() {
+         } catch (InterruptedException ex) {
+         }
+         if (!done[0]) {
+-            Log.w(TAG, "Timed out waiting for NFC, Radio and Bluetooth shutdown.");
++            Log.w(TAG, "Timed out waiting for Radio shutdown.");
+         }
+     }
+ 
+diff --git a/services/core/java/com/android/server/power/ShutdownThread.java b/services/core/java/com/android/server/power/ShutdownThread.java
+index 9cedee96bd47..944fc3300515 100644
+--- a/services/core/java/com/android/server/power/ShutdownThread.java
++++ b/services/core/java/com/android/server/power/ShutdownThread.java
+@@ -87,7 +87,7 @@
+     private static final String SYSTEMUI_REBOOT = "systemui_reboot";
+ 
+     // length of vibration before shutting down
+-    private static final int SHUTDOWN_VIBRATE_MS = 500;
++    private static final int SHUTDOWN_VIBRATE_MS = 250;
+ 
+     // state tracking
+     private static Object sIsStartedGuard = new Object();

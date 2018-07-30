@@ -1,0 +1,152 @@
+Color Engine: Add support to forcibly enable theme [1/2]
+
+diff --git a/core/java/android/app/ThemeManager.java b/core/java/android/app/ThemeManager.java
+index 012b6a74aed..62d24ecc56a 100644
+--- a/core/java/android/app/ThemeManager.java
++++ b/core/java/android/app/ThemeManager.java
+@@ -21,6 +21,7 @@
+ import android.os.RemoteException;
+ import android.os.ServiceManager;
+ import android.util.Log;
++import android.provider.Settings;
+ 
+ import java.util.ArrayList;
+ 
+@@ -101,6 +102,16 @@ public ThemeManager(Context context, IThemeService service) {
+         mService = service;
+     }
+ 
++    public static boolean shouldOverlayEnabled(Context context) {
++        if (Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_FORCE_ENABLED, 0) == 1)
++        {
++          return false;
++        }
++
++        return isOverlayEnabled();
++    }
++
+     public static boolean isOverlayEnabled() {
+         final IOverlayManager om = IOverlayManager.Stub.asInterface(ServiceManager
+                 .getService("overlay"));
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index 022b6a74aed..62d24ecc56a 100644
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -6660,6 +6660,14 @@ public static boolean putFloatForUser(ContentResolver cr, String name, float val
+         public static final String THEME_SETTINGS_MODE = "theme_settings_mode";
+ 
+         /**
++         * Whether accent colors or dark mode should forcibly be enabled
++         * nonetheless OMS state.
++         *
++         * @hide
++         */
++        public static final String THEME_FORCE_ENABLED = "theme_force_enabled";
++
++        /**
+          * Whether or not the automatic storage manager is enabled and should run on the device.
+          *
+          * @hide
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java b/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
+index 032b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
+@@ -95,7 +95,7 @@ public void onClick(View v) {
+         mToolbar.getMenu().add(Menu.NONE, MENU_RESET, 0,
+                 mContext.getString(com.android.internal.R.string.reset));
+         mToolbar.setTitle(R.string.qs_edit);
+-        if (!ThemeManager.isOverlayEnabled()) {
++        if (!ThemeManager.shouldOverlayEnabled(context)) {
+             final TypedArray ta = context.obtainStyledAttributes(new int[]{
+                     android.R.attr.textColorPrimary});
+             mToolbar.setTitleTextColor(ta.getColor(0, 0));
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java b/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
+index 042b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
+@@ -505,7 +505,7 @@ public void onDraw(Canvas c, RecyclerView parent, State state) {
+                 final int top = child.getTop() + params.topMargin +
+                         Math.round(ViewCompat.getTranslationY(child));
+                 // Set drawable color
+-                mDrawable.setColor(ThemeManager.isOverlayEnabled() ?
++                mDrawable.setColor(ThemeManager.shouldOverlayEnabled(mContext) ?
+                         mContext.getResources().getColor(R.color.qs_edit_item_decoration_bg)
+                         : mAdapterBackground);
+                 // Draw full width, in case there aren't tiles all the way across.
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/BatteryTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/BatteryTile.java
+index 052b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tiles/BatteryTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/BatteryTile.java
+@@ -266,7 +266,7 @@ private void bindBatteryInfo(BatteryInfo info) {
+                     R.id.charge_and_estimation);
+             final UsageView mBatteryUsage = (UsageView) mCurrentView.findViewById(
+                     R.id.battery_usage);
+-            if (!ThemeManager.isOverlayEnabled()) {
++            if (!ThemeManager.shouldOverlayEnabled(mContext)) {
+                 final TypedArray ta = mContext.obtainStyledAttributes(new int[]{
+                         android.R.attr.colorAccent});
+                 mEstimatedCharge.setTextColor(ta.getColor(0, 0));
+diff --git a/services/core/java/com/android/server/om/OverlayManagerService.java b/services/core/java/com/android/server/om/OverlayManagerService.java
+index 066474e..084da07 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerService.java
++++ b/services/core/java/com/android/server/om/OverlayManagerService.java
+@@ -47,6 +47,7 @@
+ import android.os.RemoteException;
+ import android.os.ResultReceiver;
+ import android.os.UserHandle;
++import android.provider.Settings;
+ import android.util.ArrayMap;
+ import android.util.AtomicFile;
+ import android.util.Slog;
+@@ -466,7 +467,10 @@ public boolean setEnabled(@Nullable final String packageName, final boolean enab
+                 return false;
+             }
+ 
+-            ThemeService.returnToDefaultTheme(mContext);
++            if (Settings.Secure.getInt(mContext.getContentResolver(),
++                    Settings.Secure.THEME_FORCE_ENABLED, 0) != 1) {
++                ThemeService.returnToDefaultTheme(mContext);
++            }
+ 
+             final long ident = Binder.clearCallingIdentity();
+             try {
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/QSDetail.java b/packages/SystemUI/src/com/android/systemui/qs/QSDetail.java
+index 072b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/QSDetail.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/QSDetail.java
+@@ -98,7 +98,7 @@ protected void onFinishInflate() {
+         mQsDetailHeaderTitle = (TextView) mQsDetailHeader.findViewById(android.R.id.title);
+         mQsDetailHeaderSwitch = (Switch) mQsDetailHeader.findViewById(android.R.id.toggle);
+         mQsDetailHeaderProgress = (ImageView) findViewById(R.id.qs_detail_header_progress);
+-        if (!ThemeManager.isOverlayEnabled()) {
++        if (!ThemeManager.shouldOverlayEnabled(mContext)) {
+             mQsDetailHeaderProgress.setBackgroundColor(Utils.getColorAccent(mContext));
+         }
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java b/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
+index 08da6d4c7b2..04f57109e5a 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
+@@ -74,7 +74,7 @@
+     private QSContainer mQsContainer;
+ 
+     public QSCustomizer(Context context, AttributeSet attrs) {
+-        super(new ContextThemeWrapper(context, ThemeManager.isOverlayEnabled()
++        super(new ContextThemeWrapper(context, ThemeManager.shouldOverlayEnabled(context)
+                 ? R.style.edit_theme : Utils.getColorAccent(context)), attrs);
+         mClipper = new QSDetailClipper(this);
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialog.java b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialog.java
+index 09be65f9dfa..9dd28e0ff18 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialog.java
++++ b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialog.java
+@@ -889,7 +889,7 @@ private void updateVolumeRowSliderTintH(VolumeRow row, boolean isActive) {
+             row.slider.requestFocus();
+         }
+         final ColorStateList tint = isActive && row.slider.isEnabled() ? mActiveSliderTint
+-                : (ThemeManager.isOverlayEnabled()
++                : (ThemeManager.shouldOverlayEnabled(mContext)
+                         ? mInactiveSliderTint
+                         : mInactiveSliderTintColorEngine);
+         if (tint == row.cachedSliderTint) return;

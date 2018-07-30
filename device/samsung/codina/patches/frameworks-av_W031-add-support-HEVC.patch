@@ -1,0 +1,20 @@
+Subject: [PATCH] libstagefright: add support for HEVC via MatroskaExtractor
+
+ D FFmpegExtractor: suppoted codec(hevc) by official Stagefright
+ D FFmpegExtractor: SniffFFMPEG sniffed the same thing as StageFright, use their extractor instead
+ W MatroskaExtractor: V_MPEGH/ISO/HEVC is not supported.
+
+diff --git a/media/libstagefright/matroska/MatroskaExtractor.cpp b/media/libstagefright/matroska/MatroskaExtractor.cpp
+index f8403a9..29ac4f3 100644
+--- a/media/libstagefright/matroska/MatroskaExtractor.cpp
++++ b/media/libstagefright/matroska/MatroskaExtractor.cpp
+@@ -1215,6 +1215,9 @@
+                                 codecID);
+                         continue;
+                     }
++                } else if (!strcmp("V_MPEGH/ISO/HEVC", codecID)) {
++                    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_HEVC);
++                    meta->setData(kKeyHVCC, 0, codecPrivate, codecPrivateSize);
+                 } else if (!strcmp("V_VP8", codecID)) {
+                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VP8);
+                 } else if (!strcmp("V_VP9", codecID)) {

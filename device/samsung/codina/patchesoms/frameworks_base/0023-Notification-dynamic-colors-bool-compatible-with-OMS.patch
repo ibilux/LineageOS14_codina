@@ -1,0 +1,33 @@
+colors bool compatible with OMS7
+
+// Resources.getSystem Resources are created on request and aren't tracked by
+// mResourceReferences.
+//
+// If overlays targeting "android" are to be used, we must create the system
+// resources regardless of whether they already exist, since otherwise the
+// information on what overlays to use would be lost. This is wasteful for most
+// applications, so limit this operation to the system user only. (This means
+// Resources.getSystem() will *not* use overlays for applications.)
+
+diff --git a/core/java/android/app/Notification.java b/core/java/android/app/Notification.java
+index 55029aad4ae..67c2132b667 100644
+--- a/core/java/android/app/Notification.java
++++ b/core/java/android/app/Notification.java
+@@ -3927,7 +3927,7 @@ public class Notification implements Parcelable
+         }
+ 
+         int resolveIconContrastColor() {
+-            if (!Resources.getSystem().getBoolean(R.bool.config_allowNotificationIconTextTinting)) {
++            if (!mContext.getResources().getBoolean(R.bool.config_allowNotificationIconTextTinting)) {
+                 return mContext.getColor(R.color.notification_icon_default_color);
+             } else {
+                 return resolveContrastColor();
+@@ -3935,7 +3935,7 @@ public class Notification implements Parcelable
+         }
+ 
+         int resolveContrastColor() {
+-            if (!Resources.getSystem().getBoolean(R.bool.config_allowNotificationIconTextTinting)) {
++            if (!mContext.getResources().getBoolean(R.bool.config_allowNotificationIconTextTinting)) {
+                 return mContext.getColor(R.color.notification_text_default_color);
+             }
+ 

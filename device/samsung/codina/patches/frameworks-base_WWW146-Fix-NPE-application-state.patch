@@ -1,0 +1,15 @@
+Subject: [PATCH] Fix potential NPE in application state
+
+diff --git a/packages/SettingsLib/src/com/android/settingslib/applications/ApplicationsState.java b/packages/SettingsLib/src/com/android/settingslib/applications/ApplicationsState.java
+index 3e462f1b1750..92e25924dc84 100644
+--- a/packages/SettingsLib/src/com/android/settingslib/applications/ApplicationsState.java
++++ b/packages/SettingsLib/src/com/android/settingslib/applications/ApplicationsState.java
+@@ -1249,7 +1249,7 @@ public int compare(AppEntry object1, AppEntry object2) {
+                     return compareResult;
+                 }
+             }
+-            return object1.info.uid - object2.info.uid;
++            return (object1.info != null ? object1.info.uid : 0) - (object2.info != null ? object2.info.uid : 0);
+         }
+     };
+ 

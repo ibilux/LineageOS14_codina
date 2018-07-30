@@ -1,0 +1,45 @@
+Subject: [PATCH] Fix Loader bugs
+
+When destroying the LoaderManager, the host was not being cleared.
+The host was being leaked and this leaked the Activity.
+
+When a LoaderManager is reused, for example with an orientation
+change, the host was updated, but it wasn't started. This
+adds a test for that case to ensure that when a reused
+LoaderManager is loaded that it is properly started.
+
+diff --git a/core/java/android/app/FragmentHostCallback.java b/core/java/android/app/FragmentHostCallback.java
+index 7e415e9f2f4..41a885eeb7f 100644
+--- a/core/java/android/app/FragmentHostCallback.java
++++ b/core/java/android/app/FragmentHostCallback.java
+@@ -294,13 +294,11 @@ LoaderManagerImpl getLoaderManager(String who, boolean started, boolean create)
+             mAllLoaderManagers = new ArrayMap<String, LoaderManager>();
+         }
+         LoaderManagerImpl lm = (LoaderManagerImpl) mAllLoaderManagers.get(who);
+-        if (lm == null) {
+-            if (create) {
+-                lm = new LoaderManagerImpl(who, this, started);
+-                mAllLoaderManagers.put(who, lm);
+-            }
+-        } else {
+-            lm.updateHostController(this);
++        if (lm == null && create) {
++            lm = new LoaderManagerImpl(who, this, started);
++            mAllLoaderManagers.put(who, lm);
++        } else if (started && lm != null && !lm.mStarted){
++            lm.doStart();
+         }
+         return lm;
+     }
+diff --git a/core/java/android/app/LoaderManager.java b/core/java/android/app/LoaderManager.java
+index bedf31a22f2..56dfc589b0a 100644
+--- a/core/java/android/app/LoaderManager.java
++++ b/core/java/android/app/LoaderManager.java
+@@ -852,6 +852,7 @@ void doDestroy() {
+             mInactiveLoaders.valueAt(i).destroy();
+         }
+         mInactiveLoaders.clear();
++        mHost = null;
+     }
+ 
+     @Override

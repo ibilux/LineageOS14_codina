@@ -1,0 +1,27 @@
+Subject: [PATCH] Ensure the mPausingActivity reset correctly while move task.
+
+pausing activity of any stack is not reset to null will block the activity to resume.
+we should reset the pausing activity to the correct stack after the task been moved.
+
+diff --git a/services/core/java/com/android/server/am/ActivityStackSupervisor.java b/services/core/java/com/android/server/am/ActivityStackSupervisor.java
+index 2262697..d3a4238 100644
+--- a/services/core/java/com/android/server/am/ActivityStackSupervisor.java
++++ b/services/core/java/com/android/server/am/ActivityStackSupervisor.java
+@@ -2510,6 +2510,17 @@
+         stack.moveToFrontAndResumeStateIfNeeded(
+                 r, forceFocus || wasFocused || wasFront, wasResumed, reason);
+ 
++        // If the mPausingActivity in the moved task, we should
++        // reset it to the stack which it moved into.
++        final int activityNdx = task.mActivities.indexOf(prevStack.mPausingActivity);
++        if (activityNdx != -1) {
++            Slog.i(TAG_STATES, "moveTaskToStackUncheckedLocked: moving mPausingActivity:"
++                    + prevStack.mPausingActivity + " from prevStack: " + prevStack + " to "
++                    + " stack: " + stack);
++            stack.mPausingActivity = prevStack.mPausingActivity;
++            prevStack.mPausingActivity = null;
++        }
++
+         return stack;
+     }
+ 

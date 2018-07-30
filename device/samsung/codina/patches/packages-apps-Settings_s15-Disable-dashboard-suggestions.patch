@@ -1,0 +1,64 @@
+Subject: [PATCH] Disable dashboard suggestions [2/2]
+
+diff --git a/res/values/cr_strings.xml b/res/values/cr_strings.xml
+index ac2440f62d..048556d94e 100644
+--- a/res/values/cr_strings.xml
++++ b/res/values/cr_strings.xml
+@@ -84,4 +84,7 @@
+     <string name="summary_dashboard_conditions_enabled">Dashboard conditions are enabled</string>
+     <string name="summary_dashboard_conditions_disabled">Dashboard conditions are disabled</string>
++    <string name="dashboard_suggestions_title">Dashboard suggestions</string>
++    <string name="summary_dashboard_suggestions_enabled">Dashboard suggestions are enabled</string>
++    <string name="summary_dashboard_suggestions_disabled">Dashboard suggestions are disabled</string>
+ 
+ </resources>
+diff --git a/res/xml/display_settings.xml b/res/xml/display_settings.xml
+index d1cbbb0cbc..cb6ed9a5b1 100644
+--- a/res/xml/display_settings.xml
++++ b/res/xml/display_settings.xml
+@@ -188,6 +188,13 @@
+             android:summaryOff="@string/summary_dashboard_conditions_disabled"
+             android:defaultValue="true" />
+ 
++        <cyanogenmod.preference.SystemSettingSwitchPreference
++            android:key="disable_suggestions"
++            android:title="@string/dashboard_suggestions_title"
++            android:summaryOn="@string/summary_dashboard_suggestions_enabled"
++            android:summaryOff="@string/summary_dashboard_suggestions_disabled"
++            android:defaultValue="true" />
++
+     </PreferenceCategory>
+ 
+ </PreferenceScreen>
+diff --git a/src/com/android/settings/dashboard/DashboardAdapter.java b/src/com/android/settings/dashboard/DashboardAdapter.java
+index 0483d45eb8..c46c364f22 100755
+--- a/src/com/android/settings/dashboard/DashboardAdapter.java
++++ b/src/com/android/settings/dashboard/DashboardAdapter.java
+@@ -106,13 +106,24 @@ public DashboardAdapter(Context context, SuggestionParser parser, Bundle savedIn
+     }
+ 
+     public List<Tile> getSuggestions() {
+-        return mSuggestions;
++        if ((Settings.System.getInt(mContext.getContentResolver(),
++                    Settings.System.DISABLE_SUGGESTIONS, 1) == 1)) {
++             return mSuggestions;
++        } else {
++             return null;
++        }
+     }
+ 
+     public void setCategoriesAndSuggestions(List<DashboardCategory> categories,
+             List<Tile> suggestions) {
+-        mSuggestions = suggestions;
+-        mCategories = categories;
++        if ((Settings.System.getInt(mContext.getContentResolver(),
++                    Settings.System.DISABLE_SUGGESTIONS, 1) == 1)) {
++             mSuggestions = suggestions;
++        } else {
++             mSuggestions = null;
++        }
++        mCategories = categories;
++        recountItems();
+ 
+         // TODO: Better place for tinting?
+         TypedValue tintColor = new TypedValue();

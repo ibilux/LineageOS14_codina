@@ -1,0 +1,1489 @@
+Subject: [PATCH 21/21] Settings: Support color engine
+
+diff --git a/res/drawable/color_circle.xml b/res/drawable/color_circle.xml
+new file mode 100644
+index 0000000000..61608fb9fa
+--- /dev/null
++++ b/res/drawable/color_circle.xml
+@@ -0,0 +1,24 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++   Copyright 2017 The ParanoidAndroid Project
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
++-->
++<shape
++    xmlns:android="http://schemas.android.com/apk/res/android"
++    android:shape="oval">
++
++    <size
++        android:width="48dp"
++        android:height="48dp"/>
++</shape>
+diff --git a/res/drawable/ic_check.xml b/res/drawable/ic_check.xml
+new file mode 100644
+index 0000000000..50aa9affdd
+--- /dev/null
++++ b/res/drawable/ic_check.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2016 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="20dp"
++    android:height="20dp"
++    android:viewportWidth="20"
++    android:viewportHeight="20">
++
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M7.5 13.5L4 10l-1.17 1.17 4.67 4.66 10-10-1.17-1.16z"/>
++
++</vector>
+diff --git a/res/drawable/switch_colors.xml b/res/drawable/switch_colors.xml
+new file mode 100644
+index 0000000000..48cc26cd48
+--- /dev/null
++++ b/res/drawable/switch_colors.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright 2017 The ParanoidAndroid Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++        <path
++            android:fillColor="#FFFFFF"
++            android:pathData="M12 3a9 9 0 0 0 0 18 1.5 1.5 0 0 0 1.11-2.51A1.5 1.5 0 0 1 14.23 16H16a5 5 0 0 0 5-5c0-4.42-4.03-8-9-8zm-5.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
++
++</vector>
+diff --git a/res/layout/dashboard_spacer.xml b/res/layout/dashboard_spacer.xml
+index 8d58c80b36..d802316402 100644
+--- a/res/layout/dashboard_spacer.xml
++++ b/res/layout/dashboard_spacer.xml
+@@ -18,4 +18,4 @@
+     xmlns:android="http://schemas.android.com/apk/res/android"
+     android:layout_width="match_parent"
+     android:layout_height="8dp"
+-    android:background="@color/card_background_grey"/>
++    android:background="?android:attr/colorBackground"/>
+diff --git a/res/layout/font_size_preview.xml b/res/layout/font_size_preview.xml
+index d84bb39d61..6d8cc639ba 100644
+--- a/res/layout/font_size_preview.xml
++++ b/res/layout/font_size_preview.xml
+@@ -17,6 +17,7 @@
+ <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+     android:layout_width="match_parent"
+     android:layout_height="match_parent"
++    android:background="?android:attr/colorBackground"
+     android:fillViewport="true" >
+ 
+     <view class="com.android.settings.TouchBlockingFrameLayout"
+diff --git a/res/layout/preview_seek_bar_view_pager.xml b/res/layout/preview_seek_bar_view_pager.xml
+index e5dfa94758..0f685963b0 100644
+--- a/res/layout/preview_seek_bar_view_pager.xml
++++ b/res/layout/preview_seek_bar_view_pager.xml
+@@ -31,6 +31,7 @@
+         android:contentDescription="@string/preview_pager_content_description" />
+ 
+     <TextView
++        android:id="@+id/preview_text"
+         android:layout_width="match_parent"
+         android:layout_height="?android:attr/actionBarSize"
+         android:paddingStart="32dp"
+diff --git a/res/layout/screen_zoom_preview_1.xml b/res/layout/screen_zoom_preview_1.xml
+index b7d2d1533d..8fbd894deb 100644
+--- a/res/layout/screen_zoom_preview_1.xml
++++ b/res/layout/screen_zoom_preview_1.xml
+@@ -17,6 +17,7 @@
+     xmlns:app="http://schemas.android.com/apk/res-auto"
+     android:layout_width="match_parent"
+     android:layout_height="match_parent"
++    android:background="?android:attr/colorBackground"
+     android:fillViewport="true"
+     android:importantForAccessibility="noHideDescendants">
+ 
+@@ -28,7 +29,6 @@
+         <LinearLayout
+             android:layout_width="match_parent"
+             android:layout_height="match_parent"
+-            android:background="@color/conversation_background"
+             android:paddingTop="@dimen/conversation_message_list_padding"
+             android:paddingStart="@dimen/conversation_message_list_padding"
+             android:paddingEnd="@dimen/conversation_message_list_padding"
+diff --git a/res/layout/screen_zoom_preview_2.xml b/res/layout/screen_zoom_preview_2.xml
+index b61f92ae54..38d4aacb5a 100644
+--- a/res/layout/screen_zoom_preview_2.xml
++++ b/res/layout/screen_zoom_preview_2.xml
+@@ -17,4 +17,5 @@
+     xmlns:android="http://schemas.android.com/apk/res/android"
+     android:layout_width="match_parent"
+     android:layout_height="match_parent"
++    android:background="?android:attr/colorBackground"
+     android:importantForAccessibility="noHideDescendants" />
+diff --git a/res/layout/screen_zoom_preview_settings.xml b/res/layout/screen_zoom_preview_settings.xml
+index f93adc24a7..b9af8ea4a4 100644
+--- a/res/layout/screen_zoom_preview_settings.xml
++++ b/res/layout/screen_zoom_preview_settings.xml
+@@ -18,7 +18,7 @@
+     android:layout_width="match_parent"
+     android:layout_height="match_parent"
+     android:fillViewport="true"
+-    android:background="?android:attr/colorBackgroundFloating"
++    android:background="?android:attr/colorBackground"
+     android:importantForAccessibility="noHideDescendants">
+ 
+     <view class="com.android.settings.TouchBlockingFrameLayout"
+diff --git a/res/layout/settings_main_dashboard.xml b/res/layout/settings_main_dashboard.xml
+index 1b7506ea9a..c10193cda9 100644
+--- a/res/layout/settings_main_dashboard.xml
++++ b/res/layout/settings_main_dashboard.xml
+@@ -21,5 +21,4 @@
+              android:id="@+id/main_content"
+              android:layout_height="match_parent"
+              android:layout_width="match_parent"
+-             android:background="@color/material_grey_300"
+              />
+diff --git a/res/layout/switch_bar.xml b/res/layout/switch_bar.xml
+index 8b69a1d1af..11d1e4fd7b 100644
+--- a/res/layout/switch_bar.xml
++++ b/res/layout/switch_bar.xml
+@@ -43,8 +43,7 @@
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+             android:layout_gravity="center_vertical"
+-            android:background="@null"
+-            android:theme="@style/ThemeOverlay.SwitchBar.Settings" />
++            android:background="@null" />
+ 
+ </merge>
+ 
+diff --git a/res/layout/theme_activity.xml b/res/layout/theme_activity.xml
+new file mode 100644
+index 0000000000..f282f478b8
+--- /dev/null
++++ b/res/layout/theme_activity.xml
+@@ -0,0 +1,56 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++   Copyright 2017 The ParanoidAndroid Project
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
++-->
++
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="match_parent"
++    android:orientation="vertical">
++
++    <include layout="@layout/preview_seek_bar_view_pager" />
++
++    <com.android.settings.widget.DotsPageIndicator
++        android:id="@+id/page_indicator"
++        style="@style/PreviewPagerPageIndicator"
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:layout_gravity="center_horizontal"
++        android:layout_marginTop="12dp"
++        android:padding="6dp" />
++
++    <TextView
++        android:id="@+id/info_text"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:gravity="center_horizontal"
++        android:paddingTop="12dp"
++        android:paddingBottom="30dp"
++        android:textAppearance="@android:style/TextAppearance.Material"
++        android:background="?android:attr/selectableItemBackground" />
++
++    <HorizontalScrollView
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:fadeScrollbars="false"
++        android:overScrollMode="never">
++        <LinearLayout
++            android:id="@+id/grid_view"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:paddingBottom="44.3dp"
++            android:orientation="horizontal" />
++    </HorizontalScrollView>
++</LinearLayout>
+diff --git a/res/values-land/themes.xml b/res/values-land/themes.xml
+index 8f407c6df8..1860870edf 100644
+--- a/res/values-land/themes.xml
++++ b/res/values-land/themes.xml
+@@ -15,8 +15,8 @@
+   ~ limitations under the License
+   -->
+ <resources>
+-    <style name="Theme.ConfirmDeviceCredentials" parent="Theme.SubSettings">
++    <style name="Theme.ConfirmDeviceCredentials" parent="Theme_SubSettings">
+         <item name="android:windowActionBar">false</item>
+         <item name="android:windowNoTitle">true</item>
+     </style>
+-</resources>
+\ No newline at end of file
++</resources>
+diff --git a/res/values-sw600dp/themes.xml b/res/values-sw600dp/themes.xml
+index f26e2f5a0c..91d1031b8f 100644
+--- a/res/values-sw600dp/themes.xml
++++ b/res/values-sw600dp/themes.xml
+@@ -16,8 +16,8 @@
+   ~ limitations under the License
+   -->
+ <resources>
+-    <style name="Theme.ConfirmDeviceCredentials" parent="Theme.SubSettings">
++    <style name="Theme.ConfirmDeviceCredentials" parent="Theme_SubSettings">
+       <item name="confirmDeviceCredentialsSideMargin">0dp</item>
+       <item name="confirmDeviceCredentialsTopMargin">64dp</item>
+     </style>
+-</resources>
+\ No newline at end of file
++</resources>
+diff --git a/res/values/cm_arrays.xml b/res/values/cm_arrays.xml
+index 476b1c22ef..7d4e2f0021 100644
+--- a/res/values/cm_arrays.xml
++++ b/res/values/cm_arrays.xml
+@@ -1,6 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!--
+      Copyright (C) 2012-2015 The CyanogenMod Project
++     Copyright (C) 2013-2017 Paranoid Android
++     Copyright (C) 2017 LineageOS Project
+ 
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+@@ -297,4 +299,29 @@
+         <item>BR</item>
+         <item>IN</item>
+     </string-array>
++
++    <!-- Color engine -->
++    <integer-array name="primary_colors">
++        <item>@*android:color/primary_device_default_settings</item>
++        <item>@*android:color/grey_primary_color</item>
++        <item>@color/pixel_primary_color</item>
++        <item>@*android:color/dark_primary_color</item>
++    </integer-array>
++
++    <integer-array name="accent_colors">
++        <item>@*android:color/accent_device_default_light</item>
++        <item>@*android:color/green_accent_color</item>
++        <item>@*android:color/cyan_accent_color</item>
++        <item>@*android:color/blue_accent_color</item>
++        <item>@*android:color/yellow_accent_color</item>
++        <item>@*android:color/orange_accent_color</item>
++        <item>@*android:color/red_accent_color</item>
++        <item>@*android:color/pink_accent_color</item>
++        <item>@*android:color/purple_accent_color</item>
++        <item>@*android:color/grey_accent_color</item>
++    </integer-array>
++
++    <string-array name="color_name">
++        <item>@string/theme_switch_palette</item>
++    </string-array>
+ </resources>
+diff --git a/res/values/cm_colors.xml b/res/values/cm_colors.xml
+index d2ecddd90c..5944d0bb5f 100644
+--- a/res/values/cm_colors.xml
++++ b/res/values/cm_colors.xml
+@@ -1,6 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!--
+ Copyright (C) 2015 The CyanogenMod Project
++Copyright 2017 The ParanoidAndroid Project
++Copyright 2017 The LineageOS Project
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -18,4 +20,7 @@ limitations under the License.
+     <!-- Action bar icons -->
+     <color name="action_bar_icon_tint">@android:color/white</color>
+     <color name="text_color_white">@android:color/white</color>
++    <!-- Color engine -->
++    <color name="pixel_primary_color">#242424</color>
++    <color name="pixel_secondary_color">#3a3a3a</color>
+ </resources>
+diff --git a/res/values/cm_dimens.xml b/res/values/cm_dimens.xml
+new file mode 100644
+index 0000000000..b00905c3d1
+--- /dev/null
++++ b/res/values/cm_dimens.xml
+@@ -0,0 +1,21 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2017 Paranoid Android
++     Copyright (C) 2017 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources>
++    <!-- Color engine -->
++    <dimen name="theme_preview_actionbar_size">15dp</dimen>
++    <dimen name="theme_color_margin_side">20dp</dimen>
++</resources>
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 844796e054..df74b0a36b 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -1,7 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!--
+      Copyright (C) 2012-2016 The CyanogenMod Project
+-               (C) 2017 The LineageOS Project
++     Copyright (C) 2016-2017 Paranoid Android
++     Copyright (C) 2017 The LineageOS Project
+ 
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+@@ -511,4 +512,26 @@
+     <!-- Burn in protection -->
+     <string name="burnin_protection_title">Display burn-in protection</string>
+     <string name="burnin_protection_summary">Periodically move items that are permanently shown on screen to avoid excessive screen wear in that area</string>
++
++    <!-- Color engine -->
++    <string name="theme_switch_palette">Switch between primary and accent colors</string>
++    <string name="theme_title">Color engine</string>
++    <string name="theme_summary">Select different colors for your current theme</string>
++    <string name="theme_accent_color">Accent color</string>
++    <string name="theme_primary_color">Primary/background color</string>
++    <string name="theme">Theme</string>
++    <string name="oms_enabled">Theme modes unavailable because a Substratum theme overlay is currently installed</string>
++    <string name="red">Red</string>
++    <string name="orange">Amber</string>
++    <string name="blue">Blue</string>
++    <string name="green">Green</string>
++    <string name="yellow">Yellow</string>
++    <string name="purple">Purple</string>
++    <string name="pink">Pink</string>
++    <string name="dark">Dark</string>
++    <string name="pixel">Pixel</string>
++    <string name="teal">Default</string>
++    <string name="cyan">Cyan</string>
++    <string name="grey">Grey</string>
++    <string name="default_string">Default</string>
+ </resources>
+diff --git a/res/values/colors.xml b/res/values/colors.xml
+index a200f7ea26..c51a5f9d61 100644
+--- a/res/values/colors.xml
++++ b/res/values/colors.xml
+@@ -124,5 +124,4 @@
+ 
+     <!-- Gestures settings -->
+     <color name="gestures_setting_background_color">#f5f5f5</color>
+-
+ </resources>
+diff --git a/res/values/themes.xml b/res/values/themes.xml
+index acabe2195f..6693ed78a3 100644
+--- a/res/values/themes.xml
++++ b/res/values/themes.xml
+@@ -168,7 +168,7 @@
+         <item name="@*android:errorColor">@color/lock_pattern_view_error_color</item>
+     </style>
+ 
+-    <style name="Theme.SubSettings" parent="Theme.Settings">
++    <style name="Theme_SubSettings">
+         <!-- Redefine the ActionBar style for contentInsetStart -->
+         <item name="android:actionBarStyle">@style/Theme.ActionBar.SubSettings</item>
+ 
+@@ -193,7 +193,7 @@
+         <item name="android:contentInsetStart">@dimen/actionbar_subsettings_contentInsetStart</item>
+     </style>
+ 
+-    <style name="ThemeOverlay.SwitchBar.Settings" parent="@*android:style/ThemeOverlay.DeviceDefault.Dark.ActionBar.Accent">
++    <style name="ThemeOverlay.SwitchBar.Settings" parent="@*android:style/ThemeOverlay.Material.Dark.ActionBar">
+         <item name="switchBarMarginStart">@dimen/switchbar_subsettings_margin_start</item>
+         <item name="switchBarMarginEnd">@dimen/switchbar_subsettings_margin_end</item>
+         <item name="switchBarBackgroundColor">@color/switchbar_background_color</item>
+@@ -251,7 +251,7 @@
+         <item name="preferenceBackgroundColor">@android:color/transparent</item>
+     </style>
+ 
+-    <style name="Theme.ConfirmDeviceCredentials" parent="Theme.SubSettings">
++    <style name="Theme.ConfirmDeviceCredentials" parent="Theme_SubSettings">
+         <item name="confirmDeviceCredentialsSideMargin">16dp</item>
+         <item name="confirmDeviceCredentialsTopMargin">16dp</item>
+     </style>
+@@ -307,4 +307,10 @@
+     <style name="FallbackHomeProgressBar" parent="FallbackHome">
+         <item name="android:colorControlActivated">?android:attr/textColorPrimary</item>
+     </style>
++
++    <style name="settings_pixel_theme">
++        <item name="android:colorPrimary">@color/pixel_primary_color</item>
++        <item name="android:colorPrimaryDark">@color/pixel_primary_color</item>
++        <item name="android:colorSecondary">@color/pixel_secondary_color</item>
++    </style>
+ </resources>
+diff --git a/res/xml/display_settings.xml b/res/xml/display_settings.xml
+index 1d8ed741fc..5087e176aa 100644
+--- a/res/xml/display_settings.xml
++++ b/res/xml/display_settings.xml
+@@ -197,4 +197,13 @@
+ 
+     </PreferenceCategory>
+ 
++    <PreferenceCategory
++            android:title="@string/theme_title">
++
++        <com.android.settings.display.ThemePreference
++                android:key="theme"
++                android:title="@string/theme" />
++
++    </PreferenceCategory>
++
+ </PreferenceScreen>
+diff --git a/src/com/android/settings/DisplaySettings.java b/src/com/android/settings/DisplaySettings.java
+index 783429b51e..b5ef4215c3 100644
+--- a/src/com/android/settings/DisplaySettings.java
++++ b/src/com/android/settings/DisplaySettings.java
+@@ -18,6 +18,7 @@ package com.android.settings;
+ 
+ import android.app.Activity;
+ import android.app.ActivityManager;
++import android.app.ThemeManager;
+ import android.app.UiModeManager;
+ import android.app.WallpaperManager;
+ import android.app.admin.DevicePolicyManager;
+@@ -51,6 +52,7 @@ import com.android.internal.logging.MetricsProto.MetricsEvent;
+ import com.android.internal.view.RotationPolicy;
+ import com.android.settings.accessibility.ToggleFontSizePreferenceFragment;
+ import com.android.settings.dashboard.SummaryLoader;
++import com.android.settings.display.ThemePreference;
+ import com.android.settings.search.BaseSearchIndexProvider;
+ import com.android.settings.search.Indexable;
+ import com.android.settingslib.RestrictedLockUtils;
+@@ -86,6 +88,7 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
+     private static final String KEY_LIFT_TO_WAKE = "lift_to_wake";
+     private static final String KEY_DOZE = "doze";
+     private static final String KEY_TAP_TO_WAKE = "tap_to_wake";
++    private static final String KEY_THEME = "theme";
+     private static final String KEY_AUTO_BRIGHTNESS = "auto_brightness";
+     private static final String KEY_AUTO_ROTATE = "auto_rotate";
+     private static final String KEY_NIGHT_DISPLAY = "night_display";
+@@ -105,6 +108,7 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
+     private SwitchPreference mTapToWakePreference;
+     private SwitchPreference mAutoBrightnessPreference;
+     private SwitchPreference mCameraGesturePreference;
++    private ThemePreference mThemePreference;
+ 
+     @Override
+     protected int getMetricsCategory() {
+@@ -269,6 +273,22 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
+             mNightModePreference.setValue(String.valueOf(currentNightMode));
+             mNightModePreference.setOnPreferenceChangeListener(this);
+         }
++
++        mThemePreference = (ThemePreference) findPreference(KEY_THEME);
++        if (mThemePreference != null) {
++            final int accentColorValue = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_ACCENT_COLOR, 0);
++            final int primaryColorValue = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_PRIMARY_COLOR, 0);
++            mThemePreference.setSummary(PreviewSeekBarPreferenceFragment.getInfoText(getContext(),
++                    false, accentColorValue, primaryColorValue) + ", " +
++                    PreviewSeekBarPreferenceFragment.getInfoText(getContext(), true,
++                    accentColorValue, primaryColorValue));
++            if (ThemeManager.isOverlayEnabled()) {
++                mThemePreference.setEnabled(false);
++                mThemePreference.setSummary(R.string.oms_enabled);
++            }
++        }
+     }
+ 
+     private static boolean allowAllRotations(Context context) {
+@@ -394,6 +414,20 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
+             int value = Settings.Secure.getInt(getContentResolver(), CAMERA_GESTURE_DISABLED, 0);
+             mCameraGesturePreference.setChecked(value == 0);
+         }
++        if (mThemePreference != null) {
++            final int accentColorValue = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_ACCENT_COLOR, 0);
++            final int primaryColorValue = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_PRIMARY_COLOR, 0);
++            mThemePreference.setSummary(PreviewSeekBarPreferenceFragment.getInfoText(getContext(),
++                    false, accentColorValue, primaryColorValue) + ", " +
++                    PreviewSeekBarPreferenceFragment.getInfoText(getContext(), true,
++                    accentColorValue, primaryColorValue));
++            if (ThemeManager.isOverlayEnabled()) {
++                mThemePreference.setEnabled(false);
++                mThemePreference.setSummary(R.string.oms_enabled);
++            }
++        }
+     }
+ 
+     private void updateScreenSaverSummary() {
+@@ -459,6 +493,22 @@ public class DisplaySettings extends SettingsPreferenceFragment implements
+                 Log.e(TAG, "could not persist night mode setting", e);
+             }
+         }
++
++        if (mThemePreference != null) {
++            final int accentColorValue = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_ACCENT_COLOR, 0);
++            final int primaryColorValue = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_PRIMARY_COLOR, 0);
++            mThemePreference.setSummary(PreviewSeekBarPreferenceFragment.getInfoText(getContext(),
++                    false, accentColorValue, primaryColorValue) + ", " +
++                    PreviewSeekBarPreferenceFragment.getInfoText(getContext(), true,
++                    accentColorValue, primaryColorValue));
++            if (ThemeManager.isOverlayEnabled()) {
++                mThemePreference.setEnabled(false);
++                mThemePreference.setSummary(R.string.oms_enabled);
++            }
++        }
++
+         return true;
+     }
+ 
+diff --git a/src/com/android/settings/EncryptionInterstitial.java b/src/com/android/settings/EncryptionInterstitial.java
+index d34b456b05..98f6b8c5dd 100644
+--- a/src/com/android/settings/EncryptionInterstitial.java
++++ b/src/com/android/settings/EncryptionInterstitial.java
+@@ -156,12 +156,13 @@ public class EncryptionInterstitial extends SettingsActivity {
+         @Override
+         public void onViewCreated(View view, Bundle savedInstanceState) {
+             super.onViewCreated(view, savedInstanceState);
+-            GlifPreferenceLayout layout = (GlifPreferenceLayout) view;
+-            layout.setDividerItemDecoration(new SettingsDividerItemDecoration(getContext()));
+-
+-            layout.setIcon(getContext().getDrawable(R.drawable.ic_lock));
+-            layout.setHeaderText(getActivity().getTitle());
++            if (view instanceof GlifPreferenceLayout) {
++                GlifPreferenceLayout layout = (GlifPreferenceLayout) view;
++                layout.setDividerItemDecoration(new SettingsDividerItemDecoration(getContext()));
+ 
++                layout.setIcon(getContext().getDrawable(R.drawable.ic_lock));
++                layout.setHeaderText(getActivity().getTitle());
++            }
+             // Use the dividers in SetupWizardRecyclerLayout. Suppress the dividers in
+             // PreferenceFragment.
+             setDivider(null);
+@@ -170,8 +171,11 @@ public class EncryptionInterstitial extends SettingsActivity {
+         @Override
+         public RecyclerView onCreateRecyclerView(LayoutInflater inflater, ViewGroup parent,
+                 Bundle savedInstanceState) {
+-            GlifPreferenceLayout layout = (GlifPreferenceLayout) parent;
+-            return layout.onCreateRecyclerView(inflater, parent, savedInstanceState);
++            if (parent instanceof GlifPreferenceLayout) {
++                GlifPreferenceLayout layout = (GlifPreferenceLayout) parent;
++                return layout.onCreateRecyclerView(inflater, parent, savedInstanceState);
++            }
++            return super.onCreateRecyclerView(inflater, parent, savedInstanceState);
+         }
+ 
+         protected void startLockIntent() {
+diff --git a/src/com/android/settings/PreviewSeekBarPreferenceFragment.java b/src/com/android/settings/PreviewSeekBarPreferenceFragment.java
+index 544999a380..53e5ee1099 100644
+--- a/src/com/android/settings/PreviewSeekBarPreferenceFragment.java
++++ b/src/com/android/settings/PreviewSeekBarPreferenceFragment.java
+@@ -19,13 +19,20 @@ package com.android.settings;
+ import android.content.Context;
+ import android.content.res.Configuration;
+ import android.os.Bundle;
++import android.provider.Settings;
+ import android.support.v4.view.ViewPager;
+ import android.support.v4.view.ViewPager.OnPageChangeListener;
++import android.view.Gravity;
+ import android.view.LayoutInflater;
+ import android.view.View;
+ import android.view.View.OnClickListener;
+ import android.view.ViewGroup;
+ import android.view.accessibility.AccessibilityEvent;
++import android.view.animation.Animation;
++import android.view.animation.Animation.AnimationListener;
++import android.view.animation.AnimationUtils;
++import android.widget.ImageView;
++import android.widget.LinearLayout;
+ import android.widget.SeekBar;
+ import android.widget.SeekBar.OnSeekBarChangeListener;
+ import android.widget.TextView;
+@@ -61,6 +68,14 @@ public abstract class PreviewSeekBarPreferenceFragment extends SettingsPreferenc
+     private View mLarger;
+     private View mSmaller;
+ 
++    private Animation mAnimation;
++    private LinearLayout mGrid;
++    private TextView mInfoText;
++
++    private int mAccentColorValue;
++    private int mPrimaryColorValue;
++    protected boolean mAccentShowing;
++
+     private class onPreviewSeekBarChangeListener implements OnSeekBarChangeListener {
+         private boolean mSeekByTouch;
+ 
+@@ -93,6 +108,55 @@ public abstract class PreviewSeekBarPreferenceFragment extends SettingsPreferenc
+         }
+     }
+ 
++    private void applyColor(int value) {
++        if (mAccentShowing) {
++            Settings.Secure.putInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_ACCENT_COLOR, value);
++        } else {
++            Settings.Secure.putInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_PRIMARY_COLOR, value);
++        }
++    }
++
++    protected void switchPalette() {
++        if (mGrid != null && mAnimation != null) {
++            mGrid.startAnimation(mAnimation);
++        }
++    }
++
++    private void switchPalette(int[] colors, int colorValue) {
++        float sideMargin = getContext().getResources().getDimensionPixelSize(
++                R.dimen.theme_color_margin_side);
++        mGrid.removeAllViews();
++        if (mInfoText != null) {
++            mInfoText.setText(getInfoText(getContext(), mAccentShowing, mAccentColorValue,
++                    mPrimaryColorValue));
++        }
++        for (int i = 0; i < colors.length; i++) {
++            final int color = colors[i];
++            final int count = i;
++            final boolean selected = colorValue == i;
++            final ImageView view = new ImageView(getContext());
++            view.setImageDrawable(getContext().getDrawable(R.drawable.color_circle));
++            view.setColorFilter(color);
++            if (selected) {
++                view.setForeground(getContext().getDrawable(R.drawable.ic_check));
++                view.setForegroundGravity(Gravity.CENTER);
++            }
++            view.setOnClickListener(new OnClickListener() {
++                @Override
++                public void onClick(View v) {
++                    applyColor(count);
++                }
++            });
++            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
++                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
++            params.leftMargin = (int) sideMargin;
++            params.rightMargin = (int) sideMargin;
++            mGrid.addView(view, params);
++        }
++    }
++
+     @Override
+     public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                              Bundle savedInstanceState) {
+@@ -103,6 +167,59 @@ public abstract class PreviewSeekBarPreferenceFragment extends SettingsPreferenc
+         final View content = inflater.inflate(mActivityLayoutResId, listContainer, false);
+         listContainer.addView(content);
+ 
++        mGrid = (LinearLayout) content.findViewById(R.id.grid_view);
++        if (mGrid != null) {
++            mAccentShowing = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_SETTINGS_MODE, 1) == 1;
++            mAccentColorValue = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_ACCENT_COLOR, 0);
++            mPrimaryColorValue = Settings.Secure.getInt(getContext().getContentResolver(),
++                    Settings.Secure.THEME_PRIMARY_COLOR, 0);
++            final int[] accentColors = getContext().getResources().getIntArray(
++                    R.array.accent_colors);
++            final int[] primaryColors = getContext().getResources().getIntArray(
++                    R.array.primary_colors);
++            if (mAccentShowing) {
++                switchPalette(accentColors, mAccentColorValue);
++                getActivity().setTitle(R.string.theme_accent_color);
++            } else {
++                switchPalette(primaryColors, mPrimaryColorValue);
++                getActivity().setTitle(R.string.theme_primary_color);
++            }
++            mAnimation = AnimationUtils.loadAnimation(getContext(),
++                    android.R.anim.fade_in);
++            mAnimation.setDuration(375);
++            mAnimation.setAnimationListener(new AnimationListener() {
++                @Override
++                public void onAnimationStart(Animation animation) {
++                    if (!mAccentShowing) {
++                        mAccentShowing = true;
++                        switchPalette(accentColors, mAccentColorValue);
++                        getActivity().setTitle(R.string.theme_accent_color);
++                    } else {
++                        mAccentShowing = false;
++                        switchPalette(primaryColors, mPrimaryColorValue);
++                        getActivity().setTitle(R.string.theme_primary_color);
++                    }
++                    Settings.Secure.putInt(getContext().getContentResolver(),
++                            Settings.Secure.THEME_SETTINGS_MODE, mAccentShowing ? 1 : 0);
++                }
++
++                @Override
++                public void onAnimationRepeat(Animation animation) {
++                }
++
++                @Override
++                public void onAnimationEnd(Animation animation) {
++                }
++            });
++            mInfoText = (TextView) content.findViewById(R.id.info_text);
++            if (mInfoText != null) {
++                mInfoText.setText(getInfoText(getContext(), mAccentShowing, mAccentColorValue,
++                        mPrimaryColorValue));
++            }
++        }
++
+         mLabel = (TextView) content.findViewById(R.id.current_label);
+ 
+         // The maximum SeekBar value always needs to be non-zero. If there's
+@@ -111,37 +228,39 @@ public abstract class PreviewSeekBarPreferenceFragment extends SettingsPreferenc
+         final int max = Math.max(1, mEntries.length - 1);
+ 
+         final LabeledSeekBar seekBar = (LabeledSeekBar) content.findViewById(R.id.seek_bar);
+-        seekBar.setLabels(mEntries);
+-        seekBar.setMax(max);
+-        seekBar.setProgress(mInitialIndex);
+-        seekBar.setOnSeekBarChangeListener(new onPreviewSeekBarChangeListener());
+-
+-        mSmaller = content.findViewById(R.id.smaller);
+-        mSmaller.setOnClickListener(new OnClickListener() {
+-            @Override
+-            public void onClick(View v) {
+-                final int progress = seekBar.getProgress();
+-                if (progress > 0) {
+-                    seekBar.setProgress(progress - 1, true);
++        if (seekBar != null) {
++            seekBar.setLabels(mEntries);
++            seekBar.setMax(max);
++            seekBar.setProgress(mInitialIndex);
++            seekBar.setOnSeekBarChangeListener(new onPreviewSeekBarChangeListener());
++
++            mSmaller = content.findViewById(R.id.smaller);
++            mSmaller.setOnClickListener(new OnClickListener() {
++                @Override
++                public void onClick(View v) {
++                    final int progress = seekBar.getProgress();
++                    if (progress > 0) {
++                        seekBar.setProgress(progress - 1, true);
++                    }
+                 }
+-            }
+-        });
+-
+-        mLarger = content.findViewById(R.id.larger);
+-        mLarger.setOnClickListener(new OnClickListener() {
+-            @Override
+-            public void onClick(View v) {
+-                final int progress = seekBar.getProgress();
+-                if (progress < seekBar.getMax()) {
+-                    seekBar.setProgress(progress + 1, true);
++            });
++
++            mLarger = content.findViewById(R.id.larger);
++            mLarger.setOnClickListener(new OnClickListener() {
++                @Override
++                public void onClick(View v) {
++                    final int progress = seekBar.getProgress();
++                    if (progress < seekBar.getMax()) {
++                        seekBar.setProgress(progress + 1, true);
++                    }
+                 }
+-            }
+-        });
++            });
+ 
+-        if (mEntries.length == 1) {
+-            // The larger and smaller buttons will be disabled when we call
+-            // setPreviewLayer() later in this method.
+-            seekBar.setEnabled(false);
++            if (mEntries.length == 1) {
++                // The larger and smaller buttons will be disabled when we call
++                // setPreviewLayer() later in this method.
++                seekBar.setEnabled(false);
++            }
+         }
+ 
+         final Context context = getContext();
+@@ -160,14 +279,15 @@ public abstract class PreviewSeekBarPreferenceFragment extends SettingsPreferenc
+         mPreviewPager.addOnPageChangeListener(mPreviewPageChangeListener);
+ 
+         mPageIndicator = (DotsPageIndicator) content.findViewById(R.id.page_indicator);
+-        if (mPreviewSampleResIds.length > 1) {
+-            mPageIndicator.setViewPager(mPreviewPager);
+-            mPageIndicator.setVisibility(View.VISIBLE);
+-            mPageIndicator.setOnPageChangeListener(mPageIndicatorPageChangeListener);
+-        } else {
+-            mPageIndicator.setVisibility(View.GONE);
++        if (mPageIndicator != null) {
++            if (mPreviewSampleResIds.length > 1) {
++                mPageIndicator.setViewPager(mPreviewPager);
++                mPageIndicator.setVisibility(View.VISIBLE);
++                mPageIndicator.setOnPageChangeListener(mPageIndicatorPageChangeListener);
++            } else {
++                mPageIndicator.setVisibility(View.GONE);
++            }
+         }
+-
+         setPreviewLayer(mInitialIndex, false);
+         return root;
+     }
+@@ -182,10 +302,56 @@ public abstract class PreviewSeekBarPreferenceFragment extends SettingsPreferenc
+      */
+     protected abstract void commit();
+ 
++    public static String getInfoText(Context context, boolean accentShowing,
++            int accentColorValue, int primaryColorValue) {
++        if (accentShowing) {
++            switch (accentColorValue) {
++                case 1:
++                    return context.getString(R.string.green);
++                case 2:
++                    return context.getString(R.string.cyan);
++                case 3:
++                    return context.getString(R.string.blue);
++                case 4:
++                    return context.getString(R.string.yellow);
++                case 5:
++                    return context.getString(R.string.orange);
++                case 6:
++                    return context.getString(R.string.red);
++                case 7:
++                    return context.getString(R.string.pink);
++                case 8:
++                    return context.getString(R.string.purple);
++                case 9:
++                    return context.getString(R.string.grey);
++                case 0:
++                default:
++                    return context.getString(R.string.teal);
++            }
++        }
++        switch (primaryColorValue) {
++            case 3:
++                return context.getString(R.string.dark);
++            case 2:
++                return context.getString(R.string.pixel);
++            case 1:
++                return context.getString(R.string.grey);
++            case 0:
++            default:
++                return context.getString(R.string.default_string);
++        }
++    }
++
+     private void setPreviewLayer(int index, boolean animate) {
+-        mLabel.setText(mEntries[index]);
+-        mSmaller.setEnabled(index > 0);
+-        mLarger.setEnabled(index < mEntries.length - 1);
++        if (mLabel != null) {
++            mLabel.setText(mEntries[index]);
++        }
++        if (mSmaller != null) {
++            mSmaller.setEnabled(index > 0);
++        }
++        if (mLarger != null) {
++            mLarger.setEnabled(index < mEntries.length - 1);
++        }
+         setPagerIndicatorContentDescription(mPreviewPager.getCurrentItem());
+         mPreviewPagerAdapter.setPreviewLayer(index, mCurrentIndex,
+                 mPreviewPager.getCurrentItem(), animate);
+@@ -194,9 +360,11 @@ public abstract class PreviewSeekBarPreferenceFragment extends SettingsPreferenc
+     }
+ 
+     private void setPagerIndicatorContentDescription(int position) {
+-        mPageIndicator.setContentDescription(
+-                getPrefContext().getString(R.string.preview_page_indicator_content_description,
+-                        position + 1, mPreviewSampleResIds.length));
++        if (mPageIndicator != null) {
++            mPageIndicator.setContentDescription(
++                    getPrefContext().getString(R.string.preview_page_indicator_content_description,
++                            position + 1, mPreviewSampleResIds.length));
++        }
+     }
+ 
+     private OnPageChangeListener mPreviewPageChangeListener = new OnPageChangeListener() {
+diff --git a/src/com/android/settings/SettingsActivity.java b/src/com/android/settings/SettingsActivity.java
+index 6b5b7bddb2..52fca135d2 100755
+--- a/src/com/android/settings/SettingsActivity.java
++++ b/src/com/android/settings/SettingsActivity.java
+@@ -20,8 +20,10 @@ import android.app.ActivityManager;
+ import android.app.Fragment;
+ import android.app.FragmentManager;
+ import android.app.FragmentTransaction;
+-import android.content.ActivityNotFoundException;
+ import android.app.ActionBar;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
++import android.content.ActivityNotFoundException;
+ import android.content.BroadcastReceiver;
+ import android.content.ComponentName;
+ import android.content.Context;
+@@ -36,8 +38,12 @@ import android.content.res.Configuration;
+ import android.nfc.NfcAdapter;
+ import android.os.AsyncTask;
+ import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.PersistableBundle;
+ import android.os.UserHandle;
+ import android.os.UserManager;
++import android.provider.Settings.Secure;
+ import android.support.v14.preference.PreferenceFragment;
+ import android.support.v7.preference.Preference;
+ import android.support.v7.preference.PreferenceManager;
+@@ -398,6 +404,25 @@ public class SettingsActivity extends SettingsDrawerActivity
+         }
+     };
+ 
++    private int mTheme;
++
++    private ThemeManager mThemeManager;
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            SettingsActivity.this.runOnUiThread(() -> {
++                SettingsActivity.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
++
+     private final BroadcastReceiver mUserAddRemoveReceiver = new BroadcastReceiver() {
+         @Override
+         public void onReceive(Context context, Intent intent) {
+@@ -535,6 +560,21 @@ public class SettingsActivity extends SettingsDrawerActivity
+ 
+     @Override
+     protected void onCreate(Bundle savedState) {
++        final int themeMode = Secure.getInt(getContentResolver(),
++                Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Secure.getInt(getContentResolver(),
++                Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        setTheme(R.style.Theme_Settings);
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 2) {
++            getTheme().applyStyle(R.style.settings_pixel_theme, true);
++        }
+         super.onCreate(savedState);
+         long startTime = System.currentTimeMillis();
+ 
+@@ -591,7 +631,8 @@ public class SettingsActivity extends SettingsDrawerActivity
+             final int themeResId = getThemeResId();
+             if (themeResId != R.style.Theme_DialogWhenLarge &&
+                     themeResId != R.style.Theme_SubSettingsDialogWhenLarge) {
+-                setTheme(R.style.Theme_SubSettings);
++                // Don't override theme to retain selected accent colors
++                getTheme().applyStyle(R.style.Theme_SubSettings, true);
+             }
+         }
+ 
+diff --git a/src/com/android/settings/applications/LinearColorBar.java b/src/com/android/settings/applications/LinearColorBar.java
+index b0b8b82e8c..a3f583005d 100644
+--- a/src/com/android/settings/applications/LinearColorBar.java
++++ b/src/com/android/settings/applications/LinearColorBar.java
+@@ -10,6 +10,7 @@ import android.graphics.Paint;
+ import android.graphics.Path;
+ import android.graphics.Rect;
+ import android.graphics.Shader;
++import android.provider.Settings;
+ import android.util.AttributeSet;
+ import android.util.DisplayMetrics;
+ import android.view.MotionEvent;
+@@ -72,7 +73,14 @@ public class LinearColorBar extends LinearLayout {
+         mEdgeGradientPaint.setStrokeWidth(mLineWidth);
+         mEdgeGradientPaint.setAntiAlias(true);
+ 
+-        mLeftColor = context.getResources().getColor(R.color.linear_color_bar_left);
++        final boolean mThemeEnabled = Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0) != 0;
++
++        if (mThemeEnabled) {
++            mLeftColor = Utils.getColorAccent(context);
++        } else {
++            mLeftColor = context.getResources().getColor(R.color.linear_color_bar_left);
++        }
+         mMiddleColor = context.getResources().getColor(R.color.linear_color_bar_middle);
+         mRightColor = context.getResources().getColor(R.color.linear_color_bar_right);
+     }
+diff --git a/src/com/android/settings/dashboard/DashboardAdapter.java b/src/com/android/settings/dashboard/DashboardAdapter.java
+index 8259d39ee6..fe297305e3 100755
+--- a/src/com/android/settings/dashboard/DashboardAdapter.java
++++ b/src/com/android/settings/dashboard/DashboardAdapter.java
+@@ -16,10 +16,13 @@
+ package com.android.settings.dashboard;
+ 
+ import android.content.Context;
++import android.content.res.TypedArray;
+ import android.content.pm.PackageManager;
++import android.graphics.Color;
+ import android.graphics.drawable.Drawable;
+ import android.graphics.drawable.Icon;
+ import android.graphics.PorterDuff.Mode;
++import android.provider.Settings;
+ import android.os.Bundle;
+ import android.support.v7.widget.PopupMenu;
+ import android.support.v7.widget.RecyclerView;
+@@ -86,6 +89,12 @@ public class DashboardAdapter extends RecyclerView.Adapter<DashboardAdapter.Dash
+     private Condition mExpandedCondition = null;
+     private SuggestionParser mSuggestionParser;
+ 
++    private int mPrimaryColor;
++    private int mAccentColor;
++
++    private boolean mThemeEnabled;
++    private boolean mDarkThemeEnabled;
++
+     public DashboardAdapter(Context context, SuggestionParser parser, Bundle savedInstanceState,
+                 List<Condition> conditions) {
+         mContext = context;
+@@ -93,6 +102,21 @@ public class DashboardAdapter extends RecyclerView.Adapter<DashboardAdapter.Dash
+         mSuggestionParser = parser;
+         mConditions = conditions;
+ 
++        final TypedArray ta = context.obtainStyledAttributes(new int[]{
++            android.R.attr.colorAccent,
++            android.R.attr.colorPrimary});
++        mAccentColor = ta.getColor(0, 0);
++        mPrimaryColor = ta.getColor(1, 0);
++        ta.recycle();
++
++        int accentColor = Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++        int primaryColor = Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++
++        mThemeEnabled = accentColor != 0 || primaryColor != 0;
++        mDarkThemeEnabled = primaryColor == 3 || primaryColor == 1;
++
+         setHasStableIds(true);
+ 
+         boolean showAll = true;
+@@ -176,7 +200,8 @@ public class DashboardAdapter extends RecyclerView.Adapter<DashboardAdapter.Dash
+             countItem(mConditions.get(i), R.layout.condition_card, shouldShow, NS_CONDITION);
+         }
+         boolean hasSuggestions = mSuggestions != null && mSuggestions.size() != 0;
+-        countItem(null, R.layout.dashboard_spacer, hasConditions && hasSuggestions, NS_SPACER);
++        countItem(null, R.layout.dashboard_spacer, hasConditions && hasSuggestions
++                && !mDarkThemeEnabled, NS_SPACER);
+         countItem(null, R.layout.suggestion_header, hasSuggestions, NS_SPACER);
+         resetCount();
+         if (mSuggestions != null) {
+@@ -240,12 +265,18 @@ public class DashboardAdapter extends RecyclerView.Adapter<DashboardAdapter.Dash
+         switch (mTypes.get(position)) {
+             case R.layout.dashboard_category:
+                 onBindCategory(holder, (DashboardCategory) mItems.get(position));
++                if (mDarkThemeEnabled) {
++                    holder.itemView.getBackground().setColorFilter(mPrimaryColor, Mode.SRC_ATOP);
++                }
+                 break;
+             case R.layout.dashboard_tile:
+                 final Tile tile = (Tile) mItems.get(position);
+                 onBindTile(holder, tile);
+                 holder.itemView.setTag(tile);
+                 holder.itemView.setOnClickListener(this);
++                if (mDarkThemeEnabled) {
++                    holder.itemView.getBackground().setColorFilter(mPrimaryColor, Mode.SRC_ATOP);
++                }
+                 break;
+             case R.layout.suggestion_header:
+                 onBindSuggestionHeader(holder);
+@@ -268,14 +299,20 @@ public class DashboardAdapter extends RecyclerView.Adapter<DashboardAdapter.Dash
+                                 showRemoveOption(v, suggestion);
+                             }
+                         });
++                if (mDarkThemeEnabled) {
++                    holder.itemView.getBackground().setColorFilter(mPrimaryColor, Mode.SRC_ATOP);
++                    holder.icon.setColorFilter(mAccentColor, Mode.SRC_ATOP);
++                    holder.title.setTextColor(Color.WHITE);
++                    holder.summary.setTextColor(Color.WHITE);
++                }
+                 break;
+             case R.layout.see_all:
+                 onBindSeeAll(holder);
+                 break;
+             case R.layout.condition_card:
+                 ConditionAdapterUtils.bindViews((Condition) mItems.get(position), holder,
+-                        mItems.get(position) == mExpandedCondition, this,
+-                        new View.OnClickListener() {
++                        mItems.get(position) == mExpandedCondition, mDarkThemeEnabled,
++                        mThemeEnabled, mAccentColor, this, new View.OnClickListener() {
+                             @Override
+                             public void onClick(View v) {
+                                 onExpandClick(v);
+@@ -323,6 +360,12 @@ public class DashboardAdapter extends RecyclerView.Adapter<DashboardAdapter.Dash
+         holder.icon.setImageResource(moreSuggestions ? R.drawable.ic_expand_more
+                 : R.drawable.ic_expand_less);
+         holder.title.setText(mContext.getString(R.string.suggestions_title, mSuggestions.size()));
++        if (mDarkThemeEnabled) {
++            holder.itemView.getBackground().setColorFilter(mPrimaryColor, Mode.SRC_ATOP);
++            holder.icon.setColorFilter(Color.WHITE, Mode.SRC_ATOP);
++            holder.title.setTextColor(Color.WHITE);
++            holder.summary.setTextColor(Color.WHITE);
++        }
+         String summaryContentDescription;
+         if (moreSuggestions) {
+             summaryContentDescription = mContext.getResources().getQuantityString(
+diff --git a/src/com/android/settings/dashboard/conditional/ConditionAdapterUtils.java b/src/com/android/settings/dashboard/conditional/ConditionAdapterUtils.java
+index a16de502d3..3cc42bdfc7 100644
+--- a/src/com/android/settings/dashboard/conditional/ConditionAdapterUtils.java
++++ b/src/com/android/settings/dashboard/conditional/ConditionAdapterUtils.java
+@@ -18,6 +18,7 @@ package com.android.settings.dashboard.conditional;
+ import android.animation.Animator;
+ import android.animation.AnimatorListenerAdapter;
+ import android.animation.ObjectAnimator;
++import android.graphics.Color;
+ import android.support.v7.widget.RecyclerView;
+ import android.support.v7.widget.helper.ItemTouchHelper;
+ import android.view.View;
+@@ -62,10 +63,14 @@ public class ConditionAdapterUtils {
+ 
+     public static void bindViews(final Condition condition,
+             DashboardAdapter.DashboardItemHolder view, boolean isExpanded,
++            boolean isDarkThemeEnabled, boolean isThemeEnabled, int accentColor,
+             View.OnClickListener onClickListener, View.OnClickListener onExpandListener) {
+         View card = view.itemView.findViewById(R.id.content);
+         card.setTag(condition);
+         card.setOnClickListener(onClickListener);
++        if (isThemeEnabled) {
++            card.setBackgroundColor(accentColor);
++        }
+         view.icon.setImageIcon(condition.getIcon());
+         view.title.setText(condition.getTitle());
+         final View collapsedGroup = view.itemView.findViewById(R.id.collapsed_group);
+@@ -82,6 +87,15 @@ public class ConditionAdapterUtils {
+             animateChange(view.itemView, view.itemView.findViewById(R.id.content),
+                     detailGroup, isExpanded, actions.length > 0);
+         }
++
++        if (isDarkThemeEnabled) {
++            view.icon.setColorFilter(Color.WHITE);
++            view.title.setTextColor(Color.WHITE);
++            expand.setColorFilter(Color.WHITE);
++            if (isExpanded) {
++                view.summary.setTextColor(Color.WHITE);
++            }
++        }
+         if (isExpanded) {
+             view.summary.setText(condition.getSummary());
+             for (int i = 0; i < 2; i++) {
+@@ -90,6 +104,7 @@ public class ConditionAdapterUtils {
+                 if (actions.length > i) {
+                     button.setVisibility(View.VISIBLE);
+                     button.setText(actions[i]);
++                    if (isDarkThemeEnabled) button.setTextColor(Color.WHITE);
+                     final int index = i;
+                     button.setOnClickListener(new View.OnClickListener() {
+                         @Override
+diff --git a/src/com/android/settings/deviceinfo/StorageSummaryPreference.java b/src/com/android/settings/deviceinfo/StorageSummaryPreference.java
+index 274179830c..05f790477f 100644
+--- a/src/com/android/settings/deviceinfo/StorageSummaryPreference.java
++++ b/src/com/android/settings/deviceinfo/StorageSummaryPreference.java
+@@ -18,6 +18,7 @@ package com.android.settings.deviceinfo;
+ 
+ import android.content.Context;
+ import android.graphics.Color;
++import android.provider.Settings;
+ import android.support.v7.preference.Preference;
+ import android.support.v7.preference.PreferenceViewHolder;
+ import android.view.View;
+@@ -26,10 +27,14 @@ import android.widget.ProgressBar;
+ import android.widget.TextView;
+ 
+ import com.android.settings.R;
++import com.android.settings.Utils;
+ 
+ public class StorageSummaryPreference extends Preference {
+     private int mPercent = -1;
+     private int mSecondaryColor;
++    private int mAccentColor;
++
++    private boolean mThemeEnabled;
+ 
+     public StorageSummaryPreference(Context context) {
+         super(context);
+@@ -37,9 +42,13 @@ public class StorageSummaryPreference extends Preference {
+         setLayoutResource(R.layout.storage_summary);
+         setEnabled(false);
+ 
++        mThemeEnabled = Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0) != 0;
++
+         TypedValue typedValue = new TypedValue();
+         context.getTheme().resolveAttribute(android.R.attr.textColorSecondary, typedValue, true);
+         mSecondaryColor = context.getResources().getColor(typedValue.resourceId);
++        mAccentColor = Utils.getColorAccent(context);
+     }
+ 
+     public void setPercent(int percent) {
+@@ -57,6 +66,10 @@ public class StorageSummaryPreference extends Preference {
+             progress.setVisibility(View.GONE);
+         }
+ 
++        if (mThemeEnabled) {
++            final TextView title = (TextView) view.findViewById(android.R.id.title);
++            title.setTextColor(mAccentColor);
++        }
+         final TextView summary = (TextView) view.findViewById(android.R.id.summary);
+         summary.setTextColor(mSecondaryColor);
+ 
+diff --git a/src/com/android/settings/display/ThemePreference.java b/src/com/android/settings/display/ThemePreference.java
+new file mode 100644
+index 0000000000..3c73f394e1
+--- /dev/null
++++ b/src/com/android/settings/display/ThemePreference.java
+@@ -0,0 +1,51 @@
++/*
++ * Copyright (C) 2017 The Paranoid Android Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.settings.display;
++
++import android.content.Context;
++import android.support.v4.content.res.TypedArrayUtils;
++import android.support.v7.preference.PreferenceGroup;
++import android.text.TextUtils;
++import android.util.AttributeSet;
++
++import com.android.settings.R;
++
++/**
++ * Preference for changing the current theme colors.
++ */
++public class ThemePreference extends PreferenceGroup {
++
++    public ThemePreference(Context context, AttributeSet attrs) {
++        super(context, attrs, TypedArrayUtils.getAttr(context,
++                android.support.v7.preference.R.attr.preferenceScreenStyle,
++                android.R.attr.preferenceScreenStyle));
++
++        if (TextUtils.isEmpty(getFragment())) {
++            setFragment("com.android.settings.display.ThemeSettings");
++        }
++
++        if (TextUtils.isEmpty(getSummary())) {
++            String summary = context.getString(R.string.theme_summary);
++            setSummary(summary);
++        }
++    }
++
++    @Override
++    protected boolean isOnSameScreenAsChildren() {
++        return false;
++    }
++}
+diff --git a/src/com/android/settings/display/ThemeSettings.java b/src/com/android/settings/display/ThemeSettings.java
+new file mode 100644
+index 0000000000..7a8978d608
+--- /dev/null
++++ b/src/com/android/settings/display/ThemeSettings.java
+@@ -0,0 +1,102 @@
++/*
++ * Copyright (C) 2017 The Paranoid Android Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.settings.display;
++
++import android.annotation.Nullable;
++import android.content.Context;
++import android.content.res.Configuration;
++import android.content.res.Resources;
++import android.os.Bundle;
++import android.provider.Settings;
++import android.view.Menu;
++import android.view.MenuInflater;
++import android.view.MenuItem;
++
++import com.android.settings.PreviewSeekBarPreferenceFragment;
++import com.android.settings.R;
++import com.android.settings.search.BaseSearchIndexProvider;
++import com.android.settings.search.Indexable;
++import com.android.settings.search.SearchIndexableRaw;
++
++import java.util.ArrayList;
++import java.util.List;
++
++/**
++ * Preference fragment used to theme colors.
++ */
++public class ThemeSettings extends PreviewSeekBarPreferenceFragment implements Indexable {
++
++    @Override
++    public void onCreate(@Nullable Bundle savedInstanceState) {
++        super.onCreate(savedInstanceState);
++
++        mActivityLayoutResId = R.layout.theme_activity;
++
++        mPreviewSampleResIds = new int[]{R.layout.screen_zoom_preview_1,
++                R.layout.screen_zoom_preview_2,
++                R.layout.screen_zoom_preview_settings};
++
++        mEntries = getResources().getStringArray(R.array.color_name);
++    }
++
++    @Override
++    protected void commit() {
++        // no-op
++    }
++
++    @Override
++    protected Configuration createConfig(Configuration origConfig, int index) {
++        return new Configuration();
++    }
++
++    @Override
++    protected int getMetricsCategory() {
++        return -1;
++    }
++
++    @Override
++    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
++        menu.add(0, 0, 0, R.string.theme_switch_palette)
++                .setIcon(R.drawable.switch_colors)
++                .setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_ALWAYS);
++    }
++
++    @Override
++    public boolean onOptionsItemSelected(MenuItem item) {
++        if (item.getItemId() == 0) {
++            switchPalette();
++            return true;
++        }
++        return super.onOptionsItemSelected(item);
++    }
++
++    /** Index provider used to expose this fragment in search. */
++    public static final SearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
++            new BaseSearchIndexProvider() {
++                @Override
++                public List<SearchIndexableRaw> getRawDataToIndex(Context context, boolean enabled) {
++                    final Resources res = context.getResources();
++                    final SearchIndexableRaw data = new SearchIndexableRaw(context);
++                    data.title = res.getString(R.string.theme_title);
++                    data.screenTitle = res.getString(R.string.theme_title);
++
++                    final List<SearchIndexableRaw> result = new ArrayList<>(1);
++                    result.add(data);
++                    return result;
++                }
++            };
++}
+diff --git a/res/values-ru/cm_strings.xml b/res/values-ru/cm_strings.xml
+index 844796e094..df74b0a36b 100644
+--- a/res/values-ru/cm_strings.xml
++++ b/res/values-ru/cm_strings.xml
+@@ -440,4 +440,27 @@
+   <!-- Burn in protection -->
+   <string name="burnin_protection_title">Защита экрана от выгорания</string>
+   <string name="burnin_protection_summary">Периодически перемещать элементы, которые постоянно отображаются на экране, чтобы избежать выгорания экрана в этой области</string>
++
++  <!-- Color engine -->
++  <string name="theme_switch_palette">Переключение между начальным и дополнительным цветом</string>
++  <string name="theme_title">Цвет</string>
++  <string name="theme_summary">Выберите различные цвета для текущей темы</string>
++  <string name="theme_accent_color">Дополнительный цвет</string>
++  <string name="theme_primary_color">Основной цвет</string>
++  <string name="theme">Тема</string>
++  <string name="oms_enabled">Режимы тем недоступны, потому что в настоящее время применяется тема Substratum</string>
++  <string name="red">Красный</string>
++  <string name="orange">Янтарный</string>
++  <string name="blue">Синий</string>
++  <string name="green">Зеленый</string>
++  <string name="yellow">Желтый</string>
++  <string name="purple">Фиолетовый</string>
++  <string name="pink">Розовый</string>
++  <string name="dark">Черный</string>
++  <string name="pixel">Пиксель</string>
++  <string name="teal">По умолчанию</string>
++  <string name="cyan">Бирюзовый</string>
++  <string name="grey">Серый</string>
++  <string name="default_string">Стандартная</string>
++
+ </resources>

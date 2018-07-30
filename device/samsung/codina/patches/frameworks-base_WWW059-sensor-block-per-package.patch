@@ -1,0 +1,59 @@
+SystemSensorManager: sensor block per-package 
+
+diff --git a/core/java/android/hardware/SystemSensorManager.java b/core/java/android/hardware/SystemSensorManager.java
+index 6df3387..d08ab21 100644
+--- a/core/java/android/hardware/SystemSensorManager.java
++++ b/core/java/android/hardware/SystemSensorManager.java
+@@ -148,6 +148,17 @@ protected boolean registerListenerImpl(SensorEventListener listener, Sensor sens
+                 "the sensor listeners size has exceeded the maximum limit " +
+                 MAX_LISTENER_COUNT);
+         }
++        if (sensor.getType() == Sensor.TYPE_SIGNIFICANT_MOTION) {
++            String pkgName = mContext.getPackageName();
++            for (String blockedPkgName : mContext.getResources().getStringArray(
++                    com.android.internal.R.array.config_blockPackagesSensorDrain)) {
++                if (pkgName.equals(blockedPkgName)) {
++                    Log.w(TAG, "Preventing " + pkgName + "from draining battery using " +
++                                    "significant motion sensor");
++                    return false;
++                }
++            }
++        }
+ 
+         // Invariants to preserve:
+         // - one Looper per SensorEventListener
+diff --git a/core/res/res/values/config.xml b/core/res/res/values/config.xml
+index 6df3387..d08ab22 100644
+--- a/core/res/res/values/config.xml
++++ b/core/res/res/values/config.xml
+@@ -2953,6 +2953,18 @@
+     <integer name="valueOff">0</integer>
+     <!-- On setting -->
+     <integer name="valueOn">1</integer>
++
++    <!-- Any package that has one of the package names defined below will be prevented
++         from using specific sensors in order to stop battery drain -->
++    <string-array name="config_blockPackagesSensorDrain">
++        <item>com.whatsapp</item>
++        <item>com.gbwhatsapp</item>
++        <item>com.yowhatsapp</item>
++        <item>com.whatsapp.plus</item>
++        <item>org.telegram.messenger</item>
++        <item>org.telegram.messenger.plus</item>
++        <item>com.snapchat.android</item>
++    </string-array>
+ 
+     <!-- Whether notify fingerprint client of successful cancelled authentication -->
+     <bool name="config_notifyClientOnFingerprintCancelSuccess">false</bool>
+diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
+index 6df3387..d08ab23 100644
+--- a/core/res/res/values/symbols.xml
++++ b/core/res/res/values/symbols.xml
+@@ -2861,4 +2861,7 @@
+   <java-symbol type="integer" name="valueOff" />
+   <java-symbol type="integer" name="valueOn" />
+ 
++  <!-- sensor block per-package -->
++  <java-symbol type="array" name="config_blockPackagesSensorDrain" />
++
+ </resources>

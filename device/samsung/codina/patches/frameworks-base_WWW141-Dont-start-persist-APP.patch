@@ -1,0 +1,15 @@
+Subject: [PATCH] Don't start persist APP when it was disabled.
+
+diff --git a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
+index 1feaa72..7f0ee48 100644
+--- a/services/core/java/com/android/server/am/ActivityManagerService.java
++++ b/services/core/java/com/android/server/am/ActivityManagerService.java
+@@ -11620,7 +11620,7 @@
+                 final List<ApplicationInfo> apps = AppGlobals.getPackageManager()
+                         .getPersistentApplications(STOCK_PM_FLAGS | matchFlags).getList();
+                 for (ApplicationInfo app : apps) {
+-                    if (!"android".equals(app.packageName)) {
++                    if (!"android".equals(app.packageName) && app.enabled) {
+                         addAppLocked(app, false, null /* ABI override */);
+                     }
+                 }

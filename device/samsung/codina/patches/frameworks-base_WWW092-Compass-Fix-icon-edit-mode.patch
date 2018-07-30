@@ -1,0 +1,18 @@
+ Compass qs tile: Fix icon in edit mode
+by fixing an NPE
+
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/CompassTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/CompassTile.java
+index e76fa00..05dd1d8 100644
+--- b/packages/SystemUI/src/com/android/systemui/qs/tiles/CompassTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/CompassTile.java
+@@ -133,7 +133,9 @@ protected void handleUpdateState(BooleanState state, Object arg) {
+             state.label = mContext.getString(R.string.quick_settings_compass_label);
+             state.contentDescription = mContext.getString(
+                     R.string.accessibility_quick_settings_compass_off);
+-            mImage.setRotation(0);
++            if (mImage != null) {
++                mImage.setRotation(0);
++            }
+         }
+     }
+ 

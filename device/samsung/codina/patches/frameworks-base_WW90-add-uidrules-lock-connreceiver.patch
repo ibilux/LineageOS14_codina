@@ -1,0 +1,27 @@
+ NetworkPolicyManagerService: add uidrules lock in connreceiver
+
+diff --git a/services/core/java/com/android/server/net/NetworkPolicyManagerService.java b/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+index 02c16ae..aff87ff 100644
+--- a/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
++++ b/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+@@ -1183,12 +1183,14 @@ public void onReceive(Context context, Intent intent) {
+             // permission above.
+ 
+             maybeRefreshTrustedTime();
+-            synchronized (mNetworkPoliciesSecondLock) {
+-                ensureActiveMobilePolicyNL();
+-                normalizePoliciesNL();
+-                updateNetworkEnabledNL();
+-                updateNetworkRulesNL();
+-                updateNotificationsNL();
++            synchronized (mUidRulesFirstLock) {
++                synchronized (mNetworkPoliciesSecondLock) {
++                    ensureActiveMobilePolicyNL();
++                    normalizePoliciesNL();
++                    updateNetworkEnabledNL();
++                    updateNetworkRulesNL();
++                    updateNotificationsNL();
++                }
+             }
+         }
+     };

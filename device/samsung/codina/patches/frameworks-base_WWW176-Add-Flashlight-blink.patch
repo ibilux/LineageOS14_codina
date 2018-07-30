@@ -1,0 +1,26 @@
+Subject: [PATCH] Add Flashlight blink on incoming calls [1/3]
+
+  There are tons of apps out there on playstore which replicate the same
+  iOS behaviour. Let's just add it in system keeping it disabled by default.
+
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index 5bdd51bf6eb..8fb1f0735f4 100755
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -3773,6 +3773,16 @@ public boolean validate(String value) {
+         public static final String DATA_DISABLED_ICON = "data_disabled_icon";
+ 
+         /**
++         * Whether to blink flashlight for incoming calls
++         * 0 = Disabled (Default)
++         * 1 = Blink flashlight only in Ringer mode
++         * 2 = Blink flashlight only in DND mode
++         * 3 = Blink flashlight always regardless of ringer mode
++         * @hide
++         */
++        public static final String FLASHLIGHT_ON_CALL = "flashlight_on_call";
++
++        /**
+          * Settings to backup. This is here so that it's in the same place as the settings
+          * keys and easy to update.
+          *

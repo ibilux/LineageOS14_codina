@@ -1,0 +1,88 @@
+Subject: [PATCH] Forward Port: Add Camera sound toggle [2/3]
+
+diff --git a/res/values/cr_strings.xml b/res/values/cr_strings.xml
+index 19a25583af..8b1331ade1 100644
+--- a/res/values/cr_strings.xml
++++ b/res/values/cr_strings.xml
+@@ -87,4 +87,8 @@
+     <string name="summary_dashboard_suggestions_enabled">Dashboard suggestions are enabled</string>
+     <string name="summary_dashboard_suggestions_disabled">Dashboard suggestions are disabled</string>
+ 
++    <!-- Camera sound -->
++    <string name="camera_sounds_title">Camera shutter sound</string>
++    <string name="camera_sounds_summary">Disabling may not work on 3rd party camera apps and in HDR+ mode</string>
++
+ </resources>
+diff --git a/res/xml/other_sound_settings.xml b/res/xml/other_sound_settings.xml
+index 1d05baec0d..7c36f51f7b 100644
+--- a/res/xml/other_sound_settings.xml
++++ b/res/xml/other_sound_settings.xml
+@@ -85,4 +85,11 @@
+             android:title="@string/emergency_tone_title"
+             android:summary="%s" />
+ 
++    <!-- Camera sounds -->
++    <SwitchPreference
++            android:key="camera_sounds"
++            android:title="@string/camera_sounds_title"
++            android:summary="@string/camera_sounds_summary"
++            android:defaultValue="true" />
++
+ </PreferenceScreen>
+diff --git a/src/com/android/settings/notification/OtherSoundSettings.java b/src/com/android/settings/notification/OtherSoundSettings.java
+index 44f91a6efe..3bca0a0d7b 100644
+--- a/src/com/android/settings/notification/OtherSoundSettings.java
++++ b/src/com/android/settings/notification/OtherSoundSettings.java
+@@ -51,7 +51,8 @@
+ import static com.android.settings.notification.SettingPref.TYPE_GLOBAL;
+ import static com.android.settings.notification.SettingPref.TYPE_SYSTEM;
+ 
+-public class OtherSoundSettings extends SettingsPreferenceFragment implements Indexable {
++public class OtherSoundSettings extends SettingsPreferenceFragment implements
++        Preference.OnPreferenceChangeListener, Indexable {
+     private static final String TAG = "OtherSoundSettings";
+ 
+     private static final int DEFAULT_ON = 1;
+@@ -73,6 +74,8 @@
+     private static final String KEY_VIBRATE_ON_TOUCH = "vibrate_on_touch";
+     private static final String KEY_DOCK_AUDIO_MEDIA = "dock_audio_media";
+     private static final String KEY_EMERGENCY_TONE = "emergency_tone";
++    private static final String KEY_CAMERA_SOUNDS = "camera_sounds";
++    private static final String PROP_CAMERA_SOUND = "persist.sys.camera-sound";
+ 
+     // Boot Sounds needs to be a system property so it can be accessed during boot.
+     private static final String KEY_BOOT_SOUNDS = "boot_sounds";
+@@ -184,6 +187,7 @@ protected String getCaption(Resources res, int value) {
+         PREF_EMERGENCY_TONE,
+     };
+ 
++    private SwitchPreference mCameraSounds;
+     private SwitchPreference mBootSounds;
+ 
+     private final SettingsObserver mSettingsObserver = new SettingsObserver();
+@@ -212,6 +216,10 @@ public void onCreate(Bundle savedInstanceState) {
+             pref.init(this);
+         }
+ 
++        mCameraSounds = (SwitchPreference) findPreference(KEY_CAMERA_SOUNDS);
++        mCameraSounds.setChecked(SystemProperties.getBoolean(PROP_CAMERA_SOUND, true));
++        mCameraSounds.setOnPreferenceChangeListener(this);
++
+         if (mContext.getResources().getBoolean(R.bool.has_boot_sounds)) {
+             mBootSounds = (SwitchPreference) findPreference(KEY_BOOT_SOUNDS);
+             mBootSounds.setChecked(SystemProperties.getBoolean(PROPERTY_BOOT_SOUNDS, true));
+@@ -258,6 +266,14 @@ private static boolean hasHaptic(Context context) {
+ 
+     // === Callbacks ===
+ 
++    public boolean onPreferenceChange(Preference preference, Object objValue) {
++        final String key = preference.getKey();
++        if (KEY_CAMERA_SOUNDS.equals(key)) {
++            SystemProperties.set(PROP_CAMERA_SOUND, (Boolean) objValue ? "1" : "0");
++        }
++        return true;
++    }
++
+     private final class SettingsObserver extends ContentObserver {
+         public SettingsObserver() {
+             super(new Handler());

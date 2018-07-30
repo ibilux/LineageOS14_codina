@@ -1,0 +1,184 @@
+Add color engine support for protected apps
+
+diff --git a/res/layout-land/patternlock.xml b/res/layout-land/patternlock.xml
+index 014179830c..05f790477f 100644
+--- a/res/layout-land/patternlock.xml
++++ b/res/layout-land/patternlock.xml
+@@ -45,6 +45,7 @@
+         <ImageView
+                 android:id="@+id/protected_apps_fingerprint_icon"
+                 android:src="@drawable/ic_fingerprint_dark"
++                android:tint="@color/lock_pattern_view_regular_color"
+                 android:layout_width="wrap_content"
+                 android:layout_height="wrap_content"
+                 android:layout_gravity="center"
+diff --git a/res/layout/hidden_apps_list_item.xml b/res/layout/hidden_apps_list_item.xml
+index 024179830c..05f790477f 100644
+--- a/res/layout/hidden_apps_list_item.xml
++++ b/res/layout/hidden_apps_list_item.xml
+@@ -69,6 +69,7 @@
+                 android:layout_width="30dp"
+                 android:layout_height="30dp"
+                 android:src="@drawable/ic_launch_app"
++                android:tint="?android:attr/colorAccent"
+                 android:layout_gravity="center"
+                 android:layout_marginRight="?android:attr/scrollbarSize"
+                 android:paddingLeft="5dp" />
+diff --git a/res/layout/patternlock.xml b/res/layout/patternlock.xml
+index 034179830c..05f790477f 100644
+--- a/res/layout/patternlock.xml
++++ b/res/layout/patternlock.xml
+@@ -99,6 +99,7 @@
+     <ImageView
+         android:id="@+id/protected_apps_fingerprint_icon"
+         android:src="@drawable/ic_fingerprint_dark"
++        android:tint="@color/lock_pattern_view_regular_color"
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content"
+         android:layout_gravity="center_horizontal"
+diff --git a/src/com/android/settings/applications/LockPatternActivity.java b/src/com/android/settings/applications/LockPatternActivity.java
+index 044179830c..05f790477f 100644
+--- a/src/com/android/settings/applications/LockPatternActivity.java
++++ b/src/com/android/settings/applications/LockPatternActivity.java
+@@ -17,10 +17,16 @@
+ package com.android.settings.applications;
+ 
+ import android.app.Activity;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
++import android.content.Context;
+ import android.content.SharedPreferences;
+ import android.hardware.fingerprint.FingerprintManager;
+ import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
+ import android.preference.PreferenceManager;
++import android.provider.Settings.Secure;
+ import android.util.Base64;
+ import android.view.Menu;
+ import android.view.MenuItem;
+@@ -64,6 +70,9 @@
+ 
+     private static final int MENU_RESET = 0;
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
+     LockPatternView mLockPatternView;
+     ProtectedAccountView mAccountView;
+     ImageView mFingerprintIconView;
+@@ -243,6 +252,20 @@ private void switchToAccount() {
+     }
+ 
+     protected void onCreate(Bundle savedInstanceState) {
++        final int themeMode = Secure.getInt(getContentResolver(),
++                Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Secure.getInt(getContentResolver(),
++                Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 2) {
++            getTheme().applyStyle(R.style.settings_pixel_theme, true);
++        }
+         super.onCreate(savedInstanceState);
+         setContentView(R.layout.patternlock);
+ 
+@@ -465,4 +488,20 @@ private void setPatternTimeout() {
+         SharedPreferences prefs = getSharedPreferences(getPackageName(), MODE_PRIVATE);
+         prefs.edit().putLong(TIMEOUT_PREF_KEY, System.currentTimeMillis()).apply();
+     }
++
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            LockPatternActivity.this.runOnUiThread(() -> {
++                LockPatternActivity.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
+ }
+diff --git a/src/com/android/settings/applications/ProtectedAppsActivity.java b/src/com/android/settings/applications/ProtectedAppsActivity.java
+index 054179830c..05f790477f 100644
+--- a/src/com/android/settings/applications/ProtectedAppsActivity.java
++++ b/src/com/android/settings/applications/ProtectedAppsActivity.java
+@@ -18,6 +18,8 @@
+ 
+ import android.app.Activity;
+ import android.app.ProgressDialog;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
+ import android.content.ComponentName;
+ import android.content.ContentResolver;
+ import android.content.Context;
+@@ -29,7 +31,10 @@
+ import android.graphics.drawable.Drawable;
+ import android.os.AsyncTask;
+ import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
+ import android.provider.Settings;
++import android.provider.Settings.Secure;
+ import android.view.LayoutInflater;
+ import android.view.Menu;
+ import android.view.MenuItem;
+@@ -74,10 +79,27 @@
+     private Intent mTargetIntent;
+     private int mOrientation;
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
+     private HashSet<ComponentName> mProtectedApps = new HashSet<ComponentName>();
+ 
+     @Override
+     protected void onCreate(Bundle savedInstanceState) {
++        final int themeMode = Secure.getInt(getContentResolver(),
++                Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Secure.getInt(getContentResolver(),
++                Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 2) {
++            getTheme().applyStyle(R.style.settings_pixel_theme, true);
++        }
+         super.onCreate(savedInstanceState);
+ 
+         // Handle incoming target activity
+@@ -509,4 +531,20 @@ public void onClick(View v) {
+             task.execute(list);
+         }
+     };
++
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            ProtectedAppsActivity.this.runOnUiThread(() -> {
++                ProtectedAppsActivity.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
+ }

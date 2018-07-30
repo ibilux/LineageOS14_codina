@@ -1,0 +1,29 @@
+Subject: [PATCH] PackageManagerService: Don't throw exceptions in isComponentProtected()
+
+* This can bring down the system, so don't throw exceptions if
+  the package/component is unknown, just return false and log it
+
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index 1505cc0..e4e7999 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -21072,13 +21072,14 @@
+ 
+             if (pkgSetting == null) {
+                 if (className == null) {
+-                    throw new IllegalArgumentException(
+-                            "Unknown package: " + packageName);
++                    Log.e(TAG, "Unknown package " + packageName + ", assuming false");
++                    return false;
+                 }
+-                throw new IllegalArgumentException(
+-                        "Unknown component: " + packageName
+-                                + "/" + className);
++                Log.e(TAG, "Unknown component " + packageName + "/" + componentName
++                        + ", assuming false");
++                return false;
+             }
++
+             // Get all the protected components
+             components = pkgSetting.getProtectedComponents(userId);
+             if (DEBUG_PROTECTED) Log.d(TAG, "Got " + components.size() + " protected components");

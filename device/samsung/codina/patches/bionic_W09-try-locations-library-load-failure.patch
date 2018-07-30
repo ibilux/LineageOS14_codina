@@ -1,0 +1,321 @@
+Subject: [PATCH] linker: try remaining locations on library load failure
+
+This commit modifies the behavior of the linker when trying to load
+a library. Until now, the linker stopped on the first file it could
+open in the path search order (starting with LD_LIBRARY_PATH); if
+loading the file failed for any reason, then linking would fail. Now,
+the linker tries to load the file immediately after opening it; if
+either opening or loading the file fails, then it moves on to the next
+location.  If all attempts fail, they are all reported in the same
+order, otherwise nothing is reported. Some error messages have been
+modified in order to always show the full path to the file that could
+not be loaded.
+
+This new behavior matches that of ld-linux.so. It is particularly
+useful in that it allows to support search paths with mixed bitness
+(libraries with the wrong bitness are merely ignored). More
+specifically, it enables 64-bit executables to execute 32-bit files
+(or the other way around) with LD_LIBRARY_PATH containing both 32-bit
+and 64-bit paths, which is impossible with the old behavior.
+
+A new test (dl.ld_library_path) has been added, checking that
+library lookup works as expected when LD_LIBRARY_PATH contains one or
+two paths with libraries of different bitness. The test relies on
+executing a dummy dynamic executable depending on a library in a
+non-standard path, which works with both glibc's and bionic's dynamic
+linkers.
+
+diff --git a/linker/linker.cpp b/linker/linker.cpp
+index fc8d1ef..2a3278d 100644
+--- a/linker/linker.cpp
++++ b/linker/linker.cpp
+@@ -1146,6 +1146,7 @@ class LoadTask {
+   }
+ 
+   void set_fd(int fd, bool assume_ownership) {
++    clean_fd();
+     fd_ = fd;
+     close_fd_ = assume_ownership;
+   }
+@@ -1209,6 +1210,10 @@ class LoadTask {
+       is_dt_needed_(false) {}
+ 
+   ~LoadTask() {
++    clean_fd();
++  }
++
++  void clean_fd() {
+     if (fd_ != -1 && close_fd_) {
+       close(fd_);
+     }
+@@ -1237,6 +1242,7 @@ using linked_list_t = LinkedList<T, TypeBasedAllocator<LinkedListEntry<T>>>;
+ typedef linked_list_t<soinfo> SoinfoLinkedList;
+ typedef linked_list_t<const char> StringLinkedList;
+ typedef std::vector<LoadTask*> LoadTaskList;
++typedef std::vector<std::string> LoadErrorList;
+ 
+ static soinfo* find_library(android_namespace_t* ns,
+                            const char* name, int rtld_flags,
+@@ -1639,91 +1645,111 @@ static bool format_path(char* buf, size_t buf_size, const char* path, const char
+   return true;
+ }
+ 
+-static int open_library_on_paths(ZipArchiveCache* zip_archive_cache,
+-                                 const char* name, off64_t* file_offset,
+-                                 const std::vector<std::string>& paths,
+-                                 std::string* realpath) {
+-  for (const auto& path : paths) {
+-    char buf[512];
+-    if (!format_path(buf, sizeof(buf), path.c_str(), name)) {
+-      continue;
++static bool do_load_library(android_namespace_t* ns,
++                            LoadTask* task,
++                            LoadTaskList* load_tasks,
++                            int rtld_flags,
++                            const std::string& realpath);
++
++static bool open_load_library_at_path(ZipArchiveCache* zip_archive_cache,
++                                      const char* path,
++                                      android_namespace_t* ns,
++                                      LoadTask* task,
++                                      LoadTaskList* load_tasks,
++                                      int rtld_flags,
++                                      LoadErrorList* failed_attempts) {
++  int fd = -1;
++  off64_t file_offset;
++  std::string realpath;
++  bool success = false;
++
++  if (strstr(path, kZipFileSeparator) != nullptr) {
++    fd = open_library_in_zipfile(zip_archive_cache, path, &file_offset, &realpath);
++  }
++
++  if (fd == -1) {
++    fd = TEMP_FAILURE_RETRY(open(path, O_RDONLY | O_CLOEXEC));
++    if (fd != -1) {
++      file_offset = 0;
++      if (!realpath_fd(fd, &realpath)) {
++        PRINT("warning: unable to get realpath for the library \"%s\". Will use given path.", path);
++        realpath = path;
++      }
+     }
++  }
+ 
+-    int fd = -1;
+-    if (strstr(buf, kZipFileSeparator) != nullptr) {
+-      fd = open_library_in_zipfile(zip_archive_cache, buf, file_offset, realpath);
++  if (fd != -1) {
++    task->set_fd(fd, true);
++    task->set_file_offset(file_offset);
++    success = do_load_library(ns, task, load_tasks, rtld_flags, realpath);
++    if (!success) {
++      failed_attempts->emplace_back(linker_get_error_buffer());
+     }
++  }
+ 
+-    if (fd == -1) {
+-      fd = TEMP_FAILURE_RETRY(open(buf, O_RDONLY | O_CLOEXEC));
+-      if (fd != -1) {
+-        *file_offset = 0;
+-        if (!realpath_fd(fd, realpath)) {
+-          PRINT("warning: unable to get realpath for the library \"%s\". Will use given path.", buf);
+-          *realpath = buf;
+-        }
+-      }
++  return success;
++}
++
++static bool open_load_library_in_paths(ZipArchiveCache* zip_archive_cache,
++                                       const std::vector<std::string>& paths,
++                                       android_namespace_t* ns,
++                                       LoadTask* task,
++                                       LoadTaskList* load_tasks,
++                                       int rtld_flags,
++                                       LoadErrorList* failed_attempts) {
++  for (const auto& path : paths) {
++    char buf[512];
++    if (!format_path(buf, sizeof(buf), path.c_str(), task->get_name())) {
++      continue;
+     }
+ 
+-    if (fd != -1) {
+-      return fd;
++    if (open_load_library_at_path(zip_archive_cache, buf, ns, task, load_tasks, rtld_flags,
++                                  failed_attempts)) {
++      return true;
+     }
+   }
+ 
+-  return -1;
++  return false;
+ }
+ 
+-static int open_library(android_namespace_t* ns,
+-                        ZipArchiveCache* zip_archive_cache,
+-                        const char* name, soinfo *needed_by,
+-                        off64_t* file_offset, std::string* realpath) {
++static bool open_load_library(android_namespace_t* ns,
++                              LoadTask* task,
++                              ZipArchiveCache* zip_archive_cache,
++                              LoadTaskList* load_tasks,
++                              int rtld_flags,
++                              LoadErrorList* failed_attempts) {
++  const char* name = task->get_name();
+   TRACE("[ opening %s ]", name);
+ 
+   // If the name contains a slash, we should attempt to open it directly and not search the paths.
+   if (strchr(name, '/') != nullptr) {
+-    int fd = -1;
+-
+-    if (strstr(name, kZipFileSeparator) != nullptr) {
+-      fd = open_library_in_zipfile(zip_archive_cache, name, file_offset, realpath);
+-    }
+-
+-    if (fd == -1) {
+-      fd = TEMP_FAILURE_RETRY(open(name, O_RDONLY | O_CLOEXEC));
+-      if (fd != -1) {
+-        *file_offset = 0;
+-        if (!realpath_fd(fd, realpath)) {
+-          PRINT("warning: unable to get realpath for the library \"%s\". Will use given path.", name);
+-          *realpath = name;
+-        }
+-      }
+-    }
+-
+-    return fd;
++    return open_load_library_at_path(zip_archive_cache, name, ns, task, load_tasks, rtld_flags,
++                                    failed_attempts);
+   }
+ 
+   // Otherwise we try LD_LIBRARY_PATH first, and fall back to the default library path
+-  int fd = open_library_on_paths(zip_archive_cache, name, file_offset, ns->get_ld_library_paths(), realpath);
+-  if (fd == -1 && needed_by != nullptr) {
+-    fd = open_library_on_paths(zip_archive_cache, name, file_offset, needed_by->get_dt_runpath(), realpath);
+-    // Check if the library is accessible
+-    if (fd != -1 && !ns->is_accessible(*realpath)) {
+-      fd = -1;
+-    }
++  soinfo* needed_by = task->get_needed_by();
++  bool success = open_load_library_in_paths(zip_archive_cache, ns->get_ld_library_paths(), ns,
++                                            task, load_tasks, rtld_flags, failed_attempts);
++  if (!success && needed_by != nullptr) {
++    success = open_load_library_in_paths(zip_archive_cache, needed_by->get_dt_runpath(), ns,
++                                         task, load_tasks, rtld_flags, failed_attempts);
+   }
+-
+-  if (fd == -1) {
+-    fd = open_library_on_paths(zip_archive_cache, name, file_offset, ns->get_default_library_paths(), realpath);
++  if (!success) {
++    success = open_load_library_in_paths(zip_archive_cache, ns->get_default_library_paths(), ns,
++                                         task, load_tasks, rtld_flags, failed_attempts);
+   }
+ 
+   // TODO(dimitry): workaround for http://b/26394120 (the grey-list)
+-  if (fd == -1 && ns != &g_default_namespace && is_greylisted(name, needed_by)) {
++  if (!success && ns != &g_default_namespace && is_greylisted(name, needed_by)) {
+     // try searching for it on default_namespace default_library_path
+-    fd = open_library_on_paths(zip_archive_cache, name, file_offset,
+-                               g_default_namespace.get_default_library_paths(), realpath);
++    success = open_load_library_in_paths(zip_archive_cache,
++                                         g_default_namespace.get_default_library_paths(), ns,
++                                         task, load_tasks, rtld_flags, failed_attempts);
+   }
+   // END OF WORKAROUND
+ 
+-  return fd;
++  return success;
+ }
+ 
+ static const char* fix_dt_needed(const char* dt_needed, const char* sopath __unused) {
+@@ -1762,13 +1788,13 @@ static void for_each_dt_needed(const ElfReader& elf_reader, F action) {
+   }
+ }
+ 
+-static bool load_library(android_namespace_t* ns,
+-                         LoadTask* task,
+-                         LoadTaskList* load_tasks,
+-                         int rtld_flags,
+-                         const std::string& realpath) {
++static bool do_load_library(android_namespace_t* ns,
++                            LoadTask* task,
++                            LoadTaskList* load_tasks,
++                            int rtld_flags,
++                            const std::string& realpath) {
+   off64_t file_offset = task->get_file_offset();
+-  const char* name = task->get_name();
++  const char* name = realpath.c_str();
+   const android_dlextinfo* extinfo = task->get_extinfo();
+ 
+   if ((file_offset % PAGE_SIZE) != 0) {
+@@ -1862,15 +1888,15 @@ static bool load_library(android_namespace_t* ns,
+     }
+   }
+ 
+-  soinfo* si = soinfo_alloc(ns, realpath.c_str(), &file_stat, file_offset, rtld_flags);
++  soinfo* si = soinfo_alloc(ns, name, &file_stat, file_offset, rtld_flags);
+   if (si == nullptr) {
+     return false;
+   }
+ 
+   task->set_soinfo(si);
+ 
+   // Read the ELF header and some of the segments.
+-  if (!task->read(realpath.c_str(), file_stat.st_size)) {
++  if (!task->read(name, file_stat.st_size)) {
+     soinfo_free(si);
+     task->set_soinfo(nullptr);
+     return false;
+@@ -1903,13 +1929,11 @@ static bool load_library(android_namespace_t* ns,
+                          LoadTaskList* load_tasks,
+                          int rtld_flags) {
+   const char* name = task->get_name();
+-  soinfo* needed_by = task->get_needed_by();
+   const android_dlextinfo* extinfo = task->get_extinfo();
+ 
+-  off64_t file_offset;
+-  std::string realpath;
+   if (extinfo != nullptr && (extinfo->flags & ANDROID_DLEXT_USE_LIBRARY_FD) != 0) {
+-    file_offset = 0;
++    off64_t file_offset = 0;
++    std::string realpath;
+     if ((extinfo->flags & ANDROID_DLEXT_USE_LIBRARY_FD_OFFSET) != 0) {
+       file_offset = extinfo->library_fd_offset;
+     }
+@@ -1922,20 +1946,27 @@ static bool load_library(android_namespace_t* ns,
+ 
+     task->set_fd(extinfo->library_fd, false);
+     task->set_file_offset(file_offset);
+-    return load_library(ns, task, load_tasks, rtld_flags, realpath);
++    return do_load_library(ns, task, load_tasks, rtld_flags, realpath);
+   }
+ 
+-  // Open the file.
+-  int fd = open_library(ns, zip_archive_cache, name, needed_by, &file_offset, &realpath);
+-  if (fd == -1) {
+-    DL_ERR("library \"%s\" not found", name);
+-    return false;
++  // List of failed attempts (error message).
++  LoadErrorList failed_attempts;
++  bool success = open_load_library(ns, task, zip_archive_cache, load_tasks,
++                                   rtld_flags, &failed_attempts);
++  if (!success) {
++    if (failed_attempts.empty()) {
++      DL_ERR("library \"%s\" not found", name);
++    } else {
++      // Print every failed attempt.
++      std::ostringstream str;
++      for (const auto& message : failed_attempts) {
++        str << '\n' << message;
++      }
++      DL_ERR("could not load \"%s\". Errors encountered:%s", name, str.str().c_str());
++    }
+   }
+ 
+-  task->set_fd(fd, true);
+-  task->set_file_offset(file_offset);
+-
+-  return load_library(ns, task, load_tasks, rtld_flags, realpath);
++  return success;
+ }
+ 
+ // Returns true if library was found and false in 2 cases

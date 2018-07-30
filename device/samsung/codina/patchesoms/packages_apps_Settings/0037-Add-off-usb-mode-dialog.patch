@@ -1,0 +1,58 @@
+Subject: [PATCH] settings: option to turn off usb mode dialog [1/2]
+
+diff --git a/res/values/projekt_strings.xml b/res/values/projekt_strings.xml
+index 99253dc7cf..2d8fb0788f 100644
+--- a/res/values/projekt_strings.xml
++++ b/res/values/projekt_strings.xml
+@@ -46,4 +46,8 @@
+    <!-- Phone info shortcut -->
+    <string name="device_info_title">Phone info</string>
+ 
++   <!-- USB mode dialog -->
++   <string name="usb_mode_dialog_show_title">Show USB mode dialog</string>
++   <string name="usb_mode_dialog_show_summary">Shows a chooser dialog when your device is connected to PC via USB</string>
++
+ </resources>
+diff --git a/res/xml/development_prefs.xml b/res/xml/development_prefs.xml
+index ea58fec6b3..8d0bb99797 100644
+--- a/res/xml/development_prefs.xml
++++ b/res/xml/development_prefs.xml
+@@ -282,6 +282,12 @@
+             android:defaultValue="@string/default_usb_configuration"
+             android:persistent="false" />
+ 
++        <cyanogenmod.preference.SystemSettingSwitchPreference
++            android:key="show_usb_mode_dialog"
++            android:title="@string/usb_mode_dialog_show_title"
++            android:summary="@string/usb_mode_dialog_show_summary"
++            android:defaultValue="false" />
++
+         <SwitchPreference
+             android:key="bluetooth_disable_absolute_volume"
+             android:title="@string/bluetooth_disable_absolute_volume"
+diff --git a/src/com/android/settings/deviceinfo/UsbModeChooserReceiver.java b/src/com/android/settings/deviceinfo/UsbModeChooserReceiver.java
+index 6458dc5a0a..66b23f54ea 100644
+--- a/src/com/android/settings/deviceinfo/UsbModeChooserReceiver.java
++++ b/src/com/android/settings/deviceinfo/UsbModeChooserReceiver.java
+@@ -23,6 +23,9 @@
+ import android.content.Intent;
+ import android.hardware.usb.UsbManager;
+ import android.os.SystemProperties;
++import android.os.UserHandle;
++import android.os.UserManager;
++import android.provider.Settings;
+ 
+ import android.util.Log;
+ 
+@@ -45,8 +48,10 @@
+     @Override
+     public void onReceive(Context context, Intent intent) {
+         String action = intent.getAction();
++        final boolean usbModeToggle = Settings.System.getIntForUser(context.getContentResolver(),
++            Settings.System.SHOW_USB_MODE_DIALOG, 1, UserHandle.USER_CURRENT) == 1;
+ 
+-        if(action != null) {
++        if(action != null && usbModeToggle) {
+             if (UsbManager.ACTION_USB_STATE.equals(action)) {
+                 boolean plugged = intent.getBooleanExtra(UsbManager.USB_CONNECTED, false);
+                 boolean configured = intent.getBooleanExtra(UsbManager.USB_CONFIGURED, false);

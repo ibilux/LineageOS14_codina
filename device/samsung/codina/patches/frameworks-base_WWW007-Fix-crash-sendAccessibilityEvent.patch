@@ -1,0 +1,33 @@
+Subject: [PATCH] Fix crash by IllegalStateException in sendAccessibilityEvent
+
+Symptom:
+IllegalStateException due to Accessibility is not enabled while doing
+sendAccessibilityEvent.
+
+Root cause:
+AccessibilityManager#sendAccessibilityEvent() throws
+IllegalStateException in spite of certainly checked
+AccessibilityManager#isEnabled(), because after checked isEnabled true
+and while constructing AccessibilityEvent, other thread makes isEnabled
+false.
+
+Solution:
+Catches IllegalStateException and shows error log.
+
+diff --git a/services/core/java/com/android/server/notification/NotificationManagerService.java b/services/core/java/com/android/server/notification/NotificationManagerService.java
+index c5f632c..1f69731 100644
+--- a/services/core/java/com/android/server/notification/NotificationManagerService.java
++++ b/services/core/java/com/android/server/notification/NotificationManagerService.java
+@@ -3518,7 +3518,11 @@
+             event.getText().add(tickerText);
+         }
+ 
+-        manager.sendAccessibilityEvent(event);
++        try {
++            manager.sendAccessibilityEvent(event);
++        } catch (IllegalStateException e) {
++            Slog.e(TAG, "sendAccessibilityEvent failed.", e);
++        }
+     }
+ 
+     private void cancelNotificationLocked(NotificationRecord r, boolean sendDelete, int reason) {

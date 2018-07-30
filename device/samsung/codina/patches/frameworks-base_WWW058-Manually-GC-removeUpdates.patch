@@ -1,0 +1,17 @@
+Subject: [PATCH] Manually triger GC for removeUpdates in LocationManagerService
+
+LocationManagerService holds the reference of location listener,
+and not be GC in time. Trigger GC manually.
+
+diff --git a/services/core/java/com/android/server/LocationManagerService.java b/services/core/java/com/android/server/LocationManagerService.java
+index 36ec2eb..a8e1711 100644
+--- a/services/core/java/com/android/server/LocationManagerService.java
++++ b/services/core/java/com/android/server/LocationManagerService.java
+@@ -1738,6 +1738,7 @@
+                 Binder.restoreCallingIdentity(identity);
+             }
+         }
++        Runtime.getRuntime().gc();
+     }
+ 
+     private void removeUpdatesLocked(Receiver receiver) {

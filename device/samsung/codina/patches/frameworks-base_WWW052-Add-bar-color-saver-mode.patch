@@ -1,0 +1,64 @@
+Add ability to disable bar color in battery saver mode [1/2]
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/BarTransitions.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/BarTransitions.java
+index 8e00099..0840501 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/BarTransitions.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/BarTransitions.java
+@@ -74,6 +74,12 @@ public int getMode() {
+         return mMode;
+     }
+ 
++    public void setBatterySaverColor(int color) {
++        if (mBarBackground != null) {
++            mBarBackground.setBatterySaverColor(color);
++        }
++    }
++
+     /**
+      * @param alwaysOpaque if {@code true}, the bar's background will always be opaque, regardless
+      *         of what mode it is currently set to.
+@@ -138,7 +144,7 @@ protected boolean isLightsOut(int mode) {
+         private final int mOpaque;
+         private final int mSemiTransparent;
+         private final int mTransparent;
+-        private final int mWarning;
++        private int mWarning;
+         private final Drawable mGradient;
+ 
+         private int mMode = -1;
+@@ -208,6 +214,12 @@ protected void onBoundsChange(Rect bounds) {
+             mGradient.setBounds(bounds);
+         }
+ 
++        public void setBatterySaverColor(int color) {
++            if (!DEBUG_COLORS) {
++                mWarning = color;
++            }
++        }
++
+         public void applyModeBackground(int oldMode, int newMode, boolean animate) {
+             if (mMode == newMode) return;
+             mMode = newMode;
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
+index 8e00019..0840591 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
+@@ -385,6 +385,8 @@
+     private PointF mWakeUpTouchLocation;
+     private boolean mScreenTurningOn;
+ 
++    private int mBatterySaverColor = SystemProperties.getInt("ro.battery_saver_color", 0xfff4511e);
++
+     int mPixelFormat;
+     Object mQueueLock = new Object();
+ 
+@@ -3456,6 +3458,9 @@ private void checkBarMode(int mode, int windowState, BarTransitions transitions,
+         if (powerSave && getBarState() == StatusBarState.SHADE) {
+             mode = MODE_WARNING;
+         }
++        if (mode == MODE_WARNING) {
++            transitions.setBatterySaverColor(mBatterySaverColor);
++        }
+         transitions.transitionTo(mode, anim);
+     }
+ 

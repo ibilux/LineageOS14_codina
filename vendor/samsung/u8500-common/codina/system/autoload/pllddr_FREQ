@@ -1,0 +1,48 @@
+#!/system/bin/sh -x
+
+PLLDDR="/sys/kernel/liveopp/pllddr"
+FREQ=1050000
+
+
+if ! test -f /ramdisk/oc_daemon ; then
+cat << "EOT" >> /ramdisk/oc_daemon
+set -x
+
+check_media()
+{
+echo $(ps | grep -c "S android\.process\.media" )
+}
+
+check_oc()
+{
+echo $(cat /sys/kernel/liveopp/pllddr | grep -c "pending")
+}
+
+while true
+do
+   oc=$(check_oc)
+   media=$(check_media)
+   if [ "$oc" == "1" ]; then
+      echo "oc"
+      if [ "$media" == "1" ]; then
+         echo "stop media"
+         killall -s SIGSTOP android.process.media
+      fi
+    else
+      if [ "$media" == "0" ] ; then
+         echo "resume media"
+         killall -s SIGCONT android.process.media
+      fi
+      exit
+    fi
+    sleep 3
+done
+EOT
+
+fi
+
+chmod 755 /ramdisk/oc_daemon
+
+
+echo $FREQ > $PLLDDR
+/ramdisk/oc_daemon &

@@ -1,0 +1,11 @@
+TYPE=$(cat /sys/kernel/mcde/lcdclk | grep -c "S6D")
+
+if [ "$TYPE" == "1" ] ; then
+	echo lcdclk=30720000 > /sys/kernel/mcde/lcdclk
+fi
+
+chown 1000:1000 /sys/kernel/god_mode/god_mode
+
+if test -f /ramdisk/.pllddr_oc_freq; then
+	PATH=/stage1 /ramdisk/sh /ramdisk/pllddr_oc.sh $(cat /ramdisk/.pllddr_oc_freq)
+fi

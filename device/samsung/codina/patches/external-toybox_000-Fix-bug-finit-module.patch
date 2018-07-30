@@ -1,0 +1,80 @@
+Subject: [PATCH] Fix bug finit module
+
+Revert also use finit_module if available. Given that "insmod -" requires
+init_module, maybe this isn't a worthwhile optimization. Given that
+"insmod /actual/file.ko" is the common use case, maybe it is.
+
+Fix a bug in readfileat where *plen would be corrupted if you didn't supply
+your own buffer (because ibuf is 0 in that case, not a pointer to the start
+of the allocated space).
+
+diff --git a/lib/lib.c b/lib/lib.c
+index e80b8b12..43db2e37 100644
+--- a/lib/lib.c
++++ b/lib/lib.c
+@@ -477,7 +477,7 @@ char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
+     rbuf = buf+rlen;
+     len -= rlen;
+   }
+-  *plen = len = rlen+(rbuf-buf);
++  *plen = len = rlen+(buf-ibuf);
+   close(fd);
+ 
+   if (rlen<0) {
+diff --git a/toys/other/insmod.c b/toys/other/insmod.c
+index cb222a54..098d2cfa 100644
+--- a/toys/other/insmod.c
++++ b/toys/other/insmod.c
+@@ -16,39 +16,31 @@ config INSMOD
+ #include "toys.h"
+ 
+ #include <sys/syscall.h>
+-#ifdef SYS_finit_module
+-#define finit_module(fd, opts, flags) syscall(SYS_finit_module, fd, opts, flags)
+-#else
+-#define finit_module(a, b, c) (errno = ENOSYS)
+-#endif
+-#define init_module(mod, len, opts) syscall(SYS_init_module, mod, len, opts)
++#define init_module(mod, len, opts) syscall(__NR_init_module, mod, len, opts)
+ 
+ void insmod_main(void)
+ {
+-  int fd = xopenro(*toys.optargs);
+-  int i, rc;
++  char * buf = NULL;
++  int len, res, i;
++  int fd = xopenro(*toys.optargs);
++
++  len = fdlength(fd);
++  buf = xmalloc(len);
++  xreadall(fd, buf, len);
+ 
+   i = 1;
+   while (toys.optargs[i] &&
+     strlen(toybuf) + strlen(toys.optargs[i]) + 2 < sizeof(toybuf))
+   {
+     strcat(toybuf, toys.optargs[i++]);
+     strcat(toybuf, " ");
+   }
+ 
+-  // finit_module was new in Linux 3.8, and doesn't work on stdin,
+-  // so we fall back to init_module if necessary.
+-  rc = finit_module(fd, toybuf, 0);
+-  if (rc && (fd == 0 || errno == ENOSYS)) {
+-    off_t len = 0;
+-    char *path = !strcmp(*toys.optargs, "-") ? "/dev/stdin" : *toys.optargs;
+-    char *buf = readfileat(AT_FDCWD, path, NULL, &len);
+-
+-    rc = init_module(buf, len, toybuf);
+-    if (CFG_TOYBOX_FREE) free(buf);
++  res = init_module(buf, len, toybuf);
++  if (CFG_TOYBOX_FREE) {
++    if (buf != toybuf) free(buf);
++    close(fd);
+   }
+ 
+-  if (rc) perror_exit("failed to load %s", toys.optargs[0]);
+-
+-  if (CFG_TOYBOX_FREE) close(fd);
++  if (res) perror_exit("failed to load %s", toys.optargs[0]);
+ }

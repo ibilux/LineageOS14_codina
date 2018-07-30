@@ -1,0 +1,172 @@
+Subject: [PATCH] RadioInfo: Add Color engine support
+
+diff --git a/res/values/projekt_themes.xml b/res/values/projekt_themes.xml
+new file mode 100644
+index 0000000000..249b5035cb
+--- /dev/null
++++ b/res/values/projekt_themes.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2010 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<resources>
++    <!-- Radio Band Mode Selection Dark Dialog -->
++    <style name="Theme_Custom_Dark_Dialog_Alert" parent="@*android:style/Theme.DeviceDefault.Dialog.Alert">
++	    <item name="android:background">@*android:color/dark_primary_color</item>
++    </style>
++
++    <!-- Radio Band Mode Selection Grey Dialog -->
++    <style name="Theme_Custom_Grey_Dialog_Alert" parent="@*android:style/Theme.DeviceDefault.Dialog.Alert">
++	    <item name="android:background">@*android:color/grey_primary_color</item>
++    </style>
++</resources>
+diff --git a/src/com/android/settings/BandMode.java b/src/com/android/settings/BandMode.java
+index 821d492a60..ae46aef55e 100644
+--- a/src/com/android/settings/BandMode.java
++++ b/src/com/android/settings/BandMode.java
+@@ -2,11 +2,16 @@
+ 
+ import android.app.Activity;
+ import android.app.AlertDialog;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
++import android.content.Context;
+ import android.content.DialogInterface;
+ import android.os.AsyncResult;
+ import android.os.Bundle;
+ import android.os.Handler;
++import android.os.Looper;
+ import android.os.Message;
++import android.provider.Settings;
+ import android.util.Log;
+ import android.view.View;
+ import android.view.Window;
+@@ -68,8 +73,44 @@
+ 
+     private Phone mPhone = null;
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            BandMode.this.runOnUiThread(() -> {
++                BandMode.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
++
+     @Override
+     protected void onCreate(Bundle icicle) {
++        final int themeMode = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 1) {
++            getTheme().applyStyle(R.style.Theme_Custom_Grey_Dialog_Alert, true);
++        }
++        if (themeMode == 3) {
++            getTheme().applyStyle(R.style.Theme_Custom_Dark_Dialog_Alert, true);
++        }
+         super.onCreate(icicle);
+ 
+         requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
+diff --git a/src/com/android/settings/RadioInfo.java b/src/com/android/settings/RadioInfo.java
+index 65a784ac0d..92335c4756 100644
+--- a/src/com/android/settings/RadioInfo.java
++++ b/src/com/android/settings/RadioInfo.java
+@@ -19,7 +19,10 @@
+ import android.app.Activity;
+ import android.app.AlertDialog;
+ import android.app.Dialog;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
+ import android.app.QueuedWork;
++import android.content.Context;
+ import android.content.Intent;
+ import android.content.pm.PackageManager;
+ import android.content.pm.ResolveInfo;
+@@ -30,7 +33,9 @@
+ import android.os.AsyncResult;
+ import android.os.Bundle;
+ import android.os.Handler;
++import android.os.Looper;
+ import android.os.Message;
++import android.provider.Settings;
+ import android.telephony.CellInfo;
+ import android.telephony.CellInfoCdma;
+ import android.telephony.CellInfoGsm;
+@@ -89,6 +94,9 @@
+ public class RadioInfo extends Activity {
+     private static final String TAG = "RadioInfo";
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
+     private static final String[] mPreferredNetworkLabels = {
+             "WCDMA preferred",
+             "GSM only",
+@@ -343,8 +351,35 @@ public void handleMessage(Message msg) {
+         }
+     };
+ 
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            RadioInfo.this.runOnUiThread(() -> {
++                RadioInfo.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
++
+     @Override
+     public void onCreate(Bundle icicle) {
++        final int themeMode = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
+         super.onCreate(icicle);
+         if (!android.os.Process.myUserHandle().isSystem()) {
+             Log.e(TAG, "Not run from system user, don't do anything.");

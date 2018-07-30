@@ -1,0 +1,30 @@
+Subject: [PATCH] Settings: fix search panel background color
+
+was white in dark mode/theme
+also remove the fragment transition
+
+diff --git a/res/layout/search_panel.xml b/res/layout/search_panel.xml
+index d466874..f1573ba 100644
+--- a/res/layout/search_panel.xml
++++ b/res/layout/search_panel.xml
+@@ -22,6 +22,7 @@
+     <LinearLayout android:layout_width="match_parent"
+             android:layout_height="match_parent"
+             android:layout_gravity="center"
++            android:background="?android:attr/colorBackground"
+             android:orientation="vertical">
+ 
+         <LinearLayout android:id="@+id/layout_suggestions"
+diff --git a/src/com/android/settings/SettingsActivity.java b/src/com/android/settings/SettingsActivity.java
+index 69756a2..d637535 100644
+--- a/src/com/android/settings/SettingsActivity.java
++++ b/src/com/android/settings/SettingsActivity.java
+@@ -1385,7 +1385,7 @@
+             setContentHeaderView(null);
+             mSearchResultsFragment = (SearchResultsSummary) switchToFragment(
+                     SearchResultsSummary.class.getName(), null, false, true,
+-                    R.string.search_results_title, null, true);
++                    R.string.search_results_title, null, false);
+         }
+         mSearchResultsFragment.setSearchView(mSearchView);
+         mSearchMenuItemExpanded = true;

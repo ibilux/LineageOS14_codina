@@ -1,0 +1,22 @@
+ Fix Settings crash when setting only decimal point to data usage warning
+
+Settings app crashes when only decimal point (".") is set to
+data usage warning because it is not a valid number.
+To fix this issue, the decimal point should be converted to 0.
+
+Test: manual - go to Settings > Data usage > Mobile data usage and then
+               set only decimal point to data usage warning.
+
+diff --git a/src/com/android/settings/datausage/BillingCycleSettings.java b/src/com/android/settings/datausage/BillingCycleSettings.java
+index 125939c..0cd83d5 100644
+--- a/src/com/android/settings/datausage/BillingCycleSettings.java
++++ b/src/com/android/settings/datausage/BillingCycleSettings.java
+@@ -300,7 +300,7 @@ public void onClick(DialogInterface dialog, int which) {
+             Spinner spinner = (Spinner) mView.findViewById(R.id.size_spinner);
+ 
+             String bytesString = bytesField.getText().toString();
+-            if (bytesString.isEmpty()) {
++            if (bytesString.isEmpty() || bytesString.equals(".")) {
+                 bytesString = "0";
+             }
+             final long bytes = (long) (Float.valueOf(bytesString)

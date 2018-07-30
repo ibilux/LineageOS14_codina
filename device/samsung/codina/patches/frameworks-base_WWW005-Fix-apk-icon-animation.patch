@@ -1,0 +1,23 @@
+Subject: [PATCH] Fix an apk icon animation corruption issue
+
+When several apk icons group together to a folder, the icons
+scale down to small icons first. Dirty region computation only
+respects the transformed small icons region. However, since the
+swap behavior is PERSERVED, the contents of larger icon region
+in previous frames are kept in the current frame, this region is
+not covered by the dirty region, thus contents of previous frame
+presents and it is corrupted. The fix is to include the in rectangle
+to enlarge the dirty region
+
+diff --git a/libs/hwui/DamageAccumulator.cpp b/libs/hwui/DamageAccumulator.cpp
+index 420e331..3bd0da9 100644
+--- a/libs/hwui/DamageAccumulator.cpp
++++ b/libs/hwui/DamageAccumulator.cpp
+@@ -152,6 +152,7 @@ static inline void mapRect(const RenderProperties& props, const SkRect& in, SkRe
+     }
+     temp.offset(props.getLeft(), props.getTop());
+     out->join(temp);
++    out->join(in);
+ }
+ 
+ static DirtyStack* findParentRenderNode(DirtyStack* frame) {

@@ -1,0 +1,58 @@
+Subject: [PATCH] WLAN: Improve property serial numbers 
+
+diff --git a/wifi/wifi.c b/wifi/wifi.c
+index 37cbb1e..191fdbb 100644
+--- a/wifi/wifi.c
++++ b/wifi/wifi.c
+@@ -880,6 +880,7 @@
+     /* Reset sockets used for exiting from hung state */
+     exit_sockets[0] = exit_sockets[1] = -1;
+ 
++#ifdef HAVE_SERIAL_SYSTEM_PROPERTIES
+     /*
+      * Get a reference to the status property, so we can distinguish
+      * the case where it goes stopped => running => stopped (i.e.,
+@@ -891,6 +892,7 @@
+     if (pi != NULL) {
+         serial = __system_property_serial(pi);
+     }
++#endif
+     property_get("wifi.interface", primary_iface, WIFI_TEST_INTERFACE);
+ 
+     property_set("ctl.start", supplicant_name);
+@@ -897,6 +899,7 @@
+     sched_yield();
+ 
+     while (count-- > 0) {
++#ifdef HAVE_SERIAL_SYSTEM_PROPERTIES
+         if (pi == NULL) {
+             pi = __system_property_find(supplicant_prop_name);
+         }
+@@ -913,6 +916,12 @@
+                 }
+             }
+         }
++#else
++        if (property_get(supplicant_prop_name, supp_status, NULL)) {
++            if (strcmp(supp_status, "running") == 0)
++                return 0;
++        }
++#endif
+         usleep(100000);
+     }
+     return -1;
+diff --git a/wifi/wifi.c b/wifi/wifi.c
+index 37cbb1e..191fdb0 100644
+--- a/wifi/wifi.c
++++ b/wifi/wifi.c
+@@ -829,8 +829,10 @@
+ {
+     char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
+     int count = 200; /* wait at most 20 seconds for completion */
++#ifdef HAVE_SERIAL_SYSTEM_PROPERTIES
+     const prop_info *pi;
+     unsigned serial = 0, i;
++#endif
+ 
+     if (wifi_start_fstman(0)) {
+         return -1;

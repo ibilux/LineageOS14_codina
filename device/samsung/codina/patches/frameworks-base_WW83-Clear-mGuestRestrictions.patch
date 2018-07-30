@@ -1,0 +1,19 @@
+Subject: [PATCH] Clear mGuestRestrictions before loading from disk
+
+Only guest user restrictions that are set to true are saved in
+writeUserListLP. When loading <guestRestrictions>, they are applied
+on top of mGuestRestrictions filled with default values.
+Restrictions set to false are reset and this was causing the issue.
+
+diff --git a/services/core/java/com/android/server/pm/UserRestrictionsUtils.java b/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
+index 634f3cd..abe4ee2 100644
+--- a/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
++++ b/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
+@@ -189,6 +189,7 @@
+     }
+ 
+     public static void readRestrictions(XmlPullParser parser, Bundle restrictions) {
++        restrictions.clear();
+         for (String key : USER_RESTRICTIONS) {
+             final String value = parser.getAttributeValue(null, key);
+             if (value != null) {

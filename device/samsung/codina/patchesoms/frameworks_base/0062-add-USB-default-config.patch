@@ -1,0 +1,82 @@
+Subject: [PATCH] [1/2] base: add USB default config
+ reuse the dev settings USB setting to define a connect default USB mode
+Subject: [PATCH] base: fix charging only USB config notification handling
+ even if it looks wrong this is needed else there will
+ be no notification when charging only
+
+ google treats the charging only state as a bastard
+ mtp without really enabled to make sure the notification stays
+ 
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index 31b667d..bbad2d2 100644
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -9384,6 +9384,11 @@
+          public static final String CONNECTED_LINE_IDENTIFICATION = "connected_line_identification";
+ 
+         /**
++         * @hide
++         */
++        public static final String USB_DEFAULT_CONFIGURATION = "usb_default_configuration";
++
++        /**
+          * Settings to backup. This is here so that it's in the same place as the settings
+          * keys and easy to update.
+          *
+diff --git a/services/usb/java/com/android/server/usb/UsbDeviceManager.java b/services/usb/java/com/android/server/usb/UsbDeviceManager.java
+index 7437332..e99ea90 100644
+--- a/services/usb/java/com/android/server/usb/UsbDeviceManager.java
++++ b/services/usb/java/com/android/server/usb/UsbDeviceManager.java
+@@ -153,6 +153,7 @@
+     private UsbDebuggingManager mDebuggingManager;
+     private final UsbAlsaManager mUsbAlsaManager;
+     private Intent mBroadcastedIntent;
++    private boolean mManualModeChange;
+ 
+     private class AdbSettingsObserver extends ContentObserver {
+         public AdbSettingsObserver() {
+@@ -809,7 +810,9 @@
+                     break;
+                 case MSG_SET_CURRENT_FUNCTIONS:
+                     String functions = (String)msg.obj;
++                    mManualModeChange = true;
+                     setEnabledFunctions(functions, false, msg.arg1 == 1);
++                    mManualModeChange = false;
+                     break;
+                 case MSG_UPDATE_USER_RESTRICTIONS:
+                     setEnabledFunctions(mCurrentFunctions, false, mUsbDataUnlocked);
+@@ -999,7 +1002,7 @@
+             }
+         }
+ 
+-        private String getDefaultFunctions() {
++        private String getDefaultFunctionsSystem() {
+             String func = SystemProperties.get(USB_PERSISTENT_CONFIG_PROPERTY,
+                     UsbManager.USB_FUNCTION_NONE);
+             if (UsbManager.USB_FUNCTION_NONE.equals(func)) {
+@@ -1008,6 +1011,25 @@
+             return func;
+         }
+ 
++        private String getDefaultFunctions() {
++            if (mManualModeChange) {
++                return getDefaultFunctionsSystem();
++            }
++            String func = Settings.Global.getString(mContentResolver,
++                    Settings.Global.USB_DEFAULT_CONFIGURATION);
++            if (func == null) {
++                return getDefaultFunctionsSystem();
++            }
++            if (DEBUG) Slog.i(TAG, "getDefaultFunctions settings = " + func);
++            if (func.equals(UsbManager.USB_FUNCTION_NONE)) {
++                mUsbDataUnlocked = false;
++                func = UsbManager.USB_FUNCTION_MTP;
++            } else {
++                mUsbDataUnlocked = true;
++            }
++            return func;
++        }
++
+         public void dump(IndentingPrintWriter pw) {
+             pw.println("USB Device State:");
+             pw.println("  mCurrentFunctions: " + mCurrentFunctions);

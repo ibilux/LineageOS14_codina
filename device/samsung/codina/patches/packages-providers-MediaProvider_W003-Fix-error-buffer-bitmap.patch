@@ -1,0 +1,38 @@
+Subject: [PATCH] Add error protection while allocate buffer for bitmap.
+
+diff --git a/src/com/android/providers/media/MediaProvider.java b/src/com/android/providers/media/MediaProvider.java
+index 88d8bbd..ab4cdea 100644
+--- a/src/com/android/providers/media/MediaProvider.java
++++ b/src/com/android/providers/media/MediaProvider.java
+@@ -5363,9 +5363,18 @@ private static boolean isRootStorageDir(String[] rootPaths, String testPath) {
+                         if (file.exists()) {
+                             FileInputStream stream = null;
+                             try {
+-                                compressed = new byte[(int)file.length()];
+-                                stream = new FileInputStream(file);
+-                                stream.read(compressed);
++
++                                if (file.length() > 0 && file.length() < MAX_ALBUMTHUMBNAIL_FILE_SIZE) {
++                                    compressed = new byte[(int)file.length()];
++                                } else {
++                                    Log.d(TAG, "[getCompressedAlbumArt] bestmatch:" + bestmatch + ", file length: " + file.length());
++                                }
++
++                                if (compressed != null) {
++                                    stream = new FileInputStream(file);
++                                    stream.read(compressed);
++                                }
++
+                             } catch (IOException ex) {
+                                 compressed = null;
+                             } catch (OutOfMemoryError ex) {
+@@ -5983,6 +5992,9 @@ private void detachVolume(Uri uri) {
+     // path for writing contents of in memory temp database
+     private String mTempDatabasePath;
+ 
++    // set maximum album thumbnail file size for FULL HD 32 bit bimap (1920*1080*4)
++    private static int MAX_ALBUMTHUMBNAIL_FILE_SIZE = 8 * 1024 * 1024;
++
+     // WARNING: the values of IMAGES_MEDIA, AUDIO_MEDIA, and VIDEO_MEDIA and AUDIO_PLAYLISTS
+     // are stored in the "files" table, so do not renumber them unless you also add
+     // a corresponding database upgrade step for it.

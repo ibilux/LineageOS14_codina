@@ -1,0 +1,6 @@
+#!/system/bin/sh
+
+echo 50000 > /sys/devices/system/cpu/cpufreq/dynamic/sampling_rate
+echo 80000 > /sys/devices/system/cpu/cpufreq/dynamic/suspend_sampling_rate
+chmod 644 /sys/devices/system/cpu/cpufreq/dynamic/sampling_rate_min
+echo 10000 > /sys/devices/system/cpu/cpufreq/dynamic/sampling_rate_min

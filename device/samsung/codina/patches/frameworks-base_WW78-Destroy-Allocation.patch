@@ -1,0 +1,18 @@
+Subject: [PATCH] Destroy Allocation with ScriptIntrinsicLut
+On destroying the intrinsic, destroy its contained Allocation right away.
+
+diff --git a/rs/java/android/renderscript/ScriptIntrinsicLUT.java b/rs/java/android/renderscript/ScriptIntrinsicLUT.java
+index 69ff64a..e90462d 100644
+--- a/rs/java/android/renderscript/ScriptIntrinsicLUT.java
++++ b/rs/java/android/renderscript/ScriptIntrinsicLUT.java
+@@ -56,6 +56,10 @@
+ 
+     }
+ 
++    public void destroy() {
++        mTables.destroy();
++        super.destroy();
++    }
+ 
+     private void validate(int index, int value) {
+         if (index < 0 || index > 255) {

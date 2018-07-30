@@ -1,0 +1,32 @@
+Subject: [PATCH] Fix Android Services Library crash
+
+[Cause of Defect]
+NotificationManagerService listens to many broadcast and remove received
+packages and restart the remote service again.
+Remote service would ipc call NotificationManagerService and the ipc
+call would do some check.
+The whole procedure is finished with many messages and different thread.
+When some broadcast comes to NotificationManagerService in a special
+moment, the check fail and client crashes.
+
+diff --git a/services/core/java/com/android/server/notification/NotificationManagerService.java b/services/core/java/com/android/server/notification/NotificationManagerService.java
+index 9949af3..1ef147d 100644
+--- a/services/core/java/com/android/server/notification/NotificationManagerService.java
++++ b/services/core/java/com/android/server/notification/NotificationManagerService.java
+@@ -793,10 +793,12 @@
+                         }
+                     }
+                 }
+-                mListeners.onPackagesChanged(removingPackage, pkgList);
+-                mRankerServices.onPackagesChanged(removingPackage, pkgList);
+-                mConditionProviders.onPackagesChanged(removingPackage, pkgList);
+-                mRankingHelper.onPackagesChanged(removingPackage, pkgList);
++                if (!queryRestart) {
++                    mListeners.onPackagesChanged(removingPackage, pkgList);
++                    mRankerServices.onPackagesChanged(removingPackage, pkgList);
++                    mConditionProviders.onPackagesChanged(removingPackage, pkgList);
++                    mRankingHelper.onPackagesChanged(removingPackage, pkgList);
++                }
+             }
+         }
+     };

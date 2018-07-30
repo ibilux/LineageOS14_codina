@@ -1,0 +1,37 @@
+Subject: [PATCH] Fixed Fragment's LoaderManagers 
+leaking the previous Activity after configuration change. 
+Sync the support library's code with the platform's code.
+
+diff --git a/fragment/java/android/support/v4/app/FragmentHostCallback.java b/fragment/java/android/support/v4/app/FragmentHostCallback.java
+index dad181a..fa51ccd 100644
+--- a/fragment/java/android/support/v4/app/FragmentHostCallback.java
++++ b/fragment/java/android/support/v4/app/FragmentHostCallback.java
+@@ -304,13 +304,9 @@
+             mAllLoaderManagers = new SimpleArrayMap<String, LoaderManager>();
+         }
+         LoaderManagerImpl lm = (LoaderManagerImpl) mAllLoaderManagers.get(who);
+-        if (lm == null) {
+-            if (create) {
+-                lm = new LoaderManagerImpl(who, this, started);
+-                mAllLoaderManagers.put(who, lm);
+-            }
+-        } else {
+-            lm.updateHostController(this);
++        if (lm == null && create) {
++            lm = new LoaderManagerImpl(who, this, started);
++            mAllLoaderManagers.put(who, lm);
+         }
+         return lm;
+     }
+@@ -350,6 +346,11 @@
+     }
+ 
+     void restoreLoaderNonConfig(SimpleArrayMap<String, LoaderManager> loaderManagers) {
++        if (loaderManagers != null) {
++            for (int i = 0, N = loaderManagers.size(); i < N; i++) {
++                ((LoaderManagerImpl) loaderManagers.valueAt(i)).updateHostController(this);
++            }
++        }
+         mAllLoaderManagers = loaderManagers;
+     }
+ 

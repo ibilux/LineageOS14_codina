@@ -1,0 +1,96 @@
+Subject: [PATCH] ManagePermissionsActivity: Add Color engine support
+
+diff --git a/res/layout/header.xml b/res/layout/header.xml
+index a4449452..4eb99e92 100644
+--- a/res/layout/header.xml
++++ b/res/layout/header.xml
+@@ -34,7 +34,7 @@
+         android:layout_alignWithParentIfMissing="true"
+         android:layout_centerVertical="true"
+         android:textAppearance="?android:attr/textAppearanceMedium"
+-        android:textColor="?android:attr/textColorPrimaryInverse"
++        android:textColor="@android:color/white"
+         android:textAlignment="viewStart" />
+ 
+     <ImageView
+diff --git a/res/values/hnt_themes.xml b/res/values/hnt_themes.xml
+index ef6e487f..06219e92 100644
+--- a/res/values/hnt_themes.xml
++++ b/res/values/hnt_themes.xml
+@@ -1,6 +1,12 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <resources>
+ 
++    <style name="settings_pixel_theme">
++        <item name="android:colorPrimary">@color/pixel_primary_color</item>
++        <item name="android:colorPrimaryDark">@color/pixel_primary_color</item>
++        <item name="android:colorSecondary">@color/pixel_secondary_color</item>
++    </style>
++
+     <style name="grantpermissions_pixel_theme">
+         <item name="android:statusBarColor">@android:color/transparent</item>
+         <item name="android:windowActionBar">false</item>
+diff --git a/src/com/android/packageinstaller/permission/ui/ManagePermissionsActivity.java b/src/com/android/packageinstaller/permission/ui/ManagePermissionsActivity.java
+index 38dbf8f5..a1ebee9a 100644
+--- a/src/com/android/packageinstaller/permission/ui/ManagePermissionsActivity.java
++++ b/src/com/android/packageinstaller/permission/ui/ManagePermissionsActivity.java
+@@ -17,18 +17,59 @@
+ package com.android.packageinstaller.permission.ui;
+ 
+ import android.app.Fragment;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
++import android.content.Context;
+ import android.content.Intent;
+ import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import android.provider.Settings.Secure;
+ import android.util.Log;
+ 
+ import com.android.packageinstaller.permission.ui.wear.AppPermissionsFragmentWear;
++import com.android.packageinstaller.R;
+ import com.android.packageinstaller.DeviceUtils;
+ 
+ public final class ManagePermissionsActivity extends OverlayTouchActivity {
+     private static final String LOG_TAG = "ManagePermissionsActivity";
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            ManagePermissionsActivity.this.runOnUiThread(() -> {
++                ManagePermissionsActivity.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
++
+     @Override
+     public void onCreate(Bundle savedInstanceState) {
++        final int themeMode = Secure.getInt(getContentResolver(),
++                Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Secure.getInt(getContentResolver(),
++                Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 2) {
++            getTheme().applyStyle(R.style.settings_pixel_theme, true);
++        }
++
+         super.onCreate(savedInstanceState);
+ 
+         if (savedInstanceState != null) {

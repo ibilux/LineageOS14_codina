@@ -1,0 +1,35 @@
+Subject: [PATCH] Fix a bug not to refresh Downloads files list when back to
+ Storage Manager
+
+Once Storage Manager shows Downloads files list, and files
+are deleted from other apps (e.g. Download app), but
+the already deleted files are still exsiting on the list
+when back to Storage Manager
+
+diff --git a/src/com/android/storagemanager/deletionhelper/DownloadsDeletionType.java b/src/com/android/storagemanager/deletionhelper/DownloadsDeletionType.java
+index 357f7ba..37339d5 100644
+--- a/src/com/android/storagemanager/deletionhelper/DownloadsDeletionType.java
++++ b/src/com/android/storagemanager/deletionhelper/DownloadsDeletionType.java
+@@ -117,6 +117,7 @@ public void run() {
+     @Override
+     public void onLoadFinished(Loader<DownloadsResult> loader, DownloadsResult data) {
+         mMostRecent = data.youngestLastModified;
++        mFiles.clear();
+         for (File file : data.files) {
+             mFiles.add(file);
+         }
+diff --git a/src/com/android/storagemanager/utils/AsyncLoader.java b/src/com/android/storagemanager/utils/AsyncLoader.java
+index 21af152..1528380 100644
+--- a/src/com/android/storagemanager/utils/AsyncLoader.java
++++ b/src/com/android/storagemanager/utils/AsyncLoader.java
+@@ -42,9 +42,7 @@ protected void onStartLoading() {
+             deliverResult(mResult);
+         }
+ 
+-        if (takeContentChanged() || mResult == null) {
+-            forceLoad();
+-        }
++        forceLoad();
+     }
+ 
+     @Override

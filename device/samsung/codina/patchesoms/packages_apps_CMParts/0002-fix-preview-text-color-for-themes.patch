@@ -1,0 +1,31 @@
+ CMParts light settings: fix preview text color for themes
+
+Preview text is inheriting notification text appearance
+(whose decision was that???), so if you use a dark theme
+in CMParts with light notifications, text wouldn't look
+that well. Fix by using secondary text color from the current
+applied theme which makes more sense.
+
+diff --git a/res/layout/preference_application_light.xml b/res/layout/preference_application_light.xml
+index 0158c80b36..0002316402 100644
+--- a/res/layout/preference_application_light.xml
++++ b/res/layout/preference_application_light.xml
+@@ -73,14 +73,16 @@
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+             android:layout_gravity="end"
+-            android:textAppearance="@android:style/TextAppearance.Material.Notification.Line2" />
++            android:textAppearance="@android:style/TextAppearance.Material.Notification.Line2"
++            android:textColor="?android:attr/textColorSecondary" />
+ 
+         <TextView
+             android:id="@+id/textViewTimeOffValue"
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+             android:layout_gravity="end"
+-            android:textAppearance="@android:style/TextAppearance.Material.Notification.Line2" />
++            android:textAppearance="@android:style/TextAppearance.Material.Notification.Line2"
++            android:textColor="?android:attr/textColorSecondary" />
+     </LinearLayout>
+ 
+     <ImageView

@@ -1,0 +1,46 @@
+Subject: [PATCH] Fix issue that stack remove issue.
+
+When remove stack, it first call DisplayContent.detachStack which will remove stack in mStacks.
+And then it will call stack.detachDisplay(), which will remove all the windows in this stack.
+it may call displaycontent.moveStack(), in the removing procedure.
+In the moveStack, it first remove the stack in mStack, which is already removed in detachStack.
+the moveStack should return here but not, and it add the stack into the mStack again.
+
+This fix add check for the above symptom. if stack already be removed, jsut return
+
+diff --git a/services/core/java/com/android/server/wm/DisplayContent.java b/services/core/java/com/android/server/wm/DisplayContent.java
+index 1015a20..5cec5f0 100644
+--- a/services/core/java/com/android/server/wm/DisplayContent.java
++++ b/services/core/java/com/android/server/wm/DisplayContent.java
+@@ -285,6 +285,10 @@
+ 
+         if (!mStacks.remove(stack)) {
+             Slog.wtf(TAG_WM, "moving stack that was not added: " + stack, new Throwable());
++            if (stack.mRemoved) {
++                Slog.w(TAG_WM, "stack is already removed, just return is OK");
++                return;
++            }
+         }
+ 
+         int addIndex = toTop ? mStacks.size() : 0;
+@@ -306,6 +310,7 @@
+     void detachStack(TaskStack stack) {
+         mDimLayerController.removeDimLayerUser(stack);
+         mStacks.remove(stack);
++        stack.mRemoved = true;
+     }
+ 
+     /**
+diff --git a/services/core/java/com/android/server/wm/TaskStack.java b/services/core/java/com/android/server/wm/TaskStack.java
+index 8f8f642..cb567be 100644
+--- a/services/core/java/com/android/server/wm/TaskStack.java
++++ b/services/core/java/com/android/server/wm/TaskStack.java
+@@ -113,6 +113,8 @@
+     /** Detach this stack from its display when animation completes. */
+     boolean mDeferDetach;
+ 
++    boolean mRemoved = false;
++
+     // Whether the stack and all its tasks is currently being drag-resized
+     private boolean mDragResizing;
+ 

@@ -1,0 +1,143 @@
+theme: Add support to forcibly enable theme [2/2]
+
+diff --git a/res/values/projekt_strings.xml b/res/values/projekt_strings.xml
+index 1110070..0289010 100644
+--- a/res/values/projekt_strings.xml
++++ b/res/values/projekt_strings.xml
+@@ -33,4 +33,8 @@
+    <string name="substratum_title">Substratum</string>
+    <string name="substratum_summary">Customize device theme</string>
+ 
++   <!-- Add support to forcibly enable theme -->
++   <string name="theme_force_enabled_title">Force enable theme</string>
++   <string name="theme_force_enabled_summary">Theme will be forcibly enabled nonetheless OMS state</string>
++
+ </resources>
+diff --git a/res/values-ru/projekt_strings.xml b/res/values-ru/projekt_strings.xml
+index 1110070..0389011 100644
+--- a/res/values-ru/projekt_strings.xml
++++ b/res/values-ru/projekt_strings.xml
+@@ -33,4 +33,8 @@
+    <string name="substratum_title">Темы Substratum</string>
+    <string name="substratum_summary">Установка тем оформления</string>
+ 
++   <!-- Add support to forcibly enable theme -->
++   <string name="theme_force_enabled_title">Принудительно включить тему</string>
++   <string name="theme_force_enabled_summary">Тема будет включена принудительно, независимо от состояния OMS</string>
++
+ </resources>
+diff --git a/res/xml/development_prefs.xml b/res/xml/development_prefs.xml
+index 1e7ed4a2b9..0054829ca1 100644
+--- a/res/xml/development_prefs.xml
++++ b/res/xml/development_prefs.xml
+@@ -232,6 +232,11 @@
+             android:title="@string/force_authorize_substratum_packages_title"
+             android:summary="@string/force_authorize_substratum_packages_summary" />
+ 
++        <SwitchPreference
++            android:key="theme_force_enabled"
++            android:title="@string/theme_force_enabled_title"
++            android:summary="@string/theme_force_enabled_summary" />
++
+     </PreferenceCategory>
+ 
+     <PreferenceCategory android:key="debug_networking_category"
+diff --git a/src/com/android/settings/DevelopmentSettings.java b/src/com/android/settings/DevelopmentSettings.java
+index 10e0b73447..01c0a46b44 100644
+--- a/src/com/android/settings/DevelopmentSettings.java
++++ b/src/com/android/settings/DevelopmentSettings.java
+@@ -240,6 +240,8 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+ 
+     private static final String FORCE_AUTHORIZE_SUBSTRATUM_PACKAGES = "force_authorize_substratum_packages";
+ 
++    private static final String THEME_FORCE_ENABLED = "theme_force_enabled";
++
+     private static final int RESULT_DEBUG_APP = 1000;
+     private static final int RESULT_MOCK_LOCATION_APP = 1001;
+ 
+@@ -267,6 +269,7 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+     private boolean mDontPokeProperties;
+ 
+     private SwitchPreference mForceAuthorizeSubstratumPackages;
++    private SwitchPreference mThemeForceEnabled;
+ 
+     private SwitchPreference mEnableAdb;
+     private SwitchPreference mAdbOverNetwork;
+@@ -512,6 +515,7 @@ public void onCreate(Bundle icicle) {
+         mSimulateColorSpace = addListPreference(SIMULATE_COLOR_SPACE);
+         mUSBAudio = findAndInitSwitchPref(USB_AUDIO_KEY);
+         mForceResizable = findAndInitSwitchPref(FORCE_RESIZABLE_KEY);
++        mThemeForceEnabled = findAndInitSwitchPref(THEME_FORCE_ENABLED);
+ 
+         mImmediatelyDestroyActivities = (SwitchPreference) findPreference(
+                 IMMEDIATELY_DESTROY_ACTIVITIES_KEY);
+@@ -838,6 +842,7 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+         updateAdbOverNetwork();
+         updateUpdateRecoveryOptions();
+         updateForceAuthorizeSubstratumPackagesOptions();
++        updateThemeForceEnabledOptions();
+     }
+ 
+     private void resetMSOBOptions() {
+@@ -898,6 +903,17 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+                 Settings.Secure.FORCE_AUTHORIZE_SUBSTRATUM_PACKAGES, 0) != 0);
+     }
+ 
++    private void writeThemeForceEnabledOptions() {
++        Settings.Secure.putInt(getActivity().getContentResolver(),
++              Settings.Secure.THEME_FORCE_ENABLED,
++              mThemeForceEnabled.isChecked() ? 1 : 0);
++    }
++
++    private void updateThemeForceEnabledOptions() {
++        mThemeForceEnabled.setChecked(Settings.Secure.getInt(getActivity().getContentResolver(),
++              Settings.Secure.THEME_FORCE_ENABLED, 0) != 0);
++    }
++
+     private void resetDangerousOptions() {
+         mDontPokeProperties = true;
+         for (int i=0; i< mResetSwitchPrefs.size(); i++) {
+@@ -2336,6 +2352,8 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+             writeForceResizableOptions();
+         } else if (preference == mForceAuthorizeSubstratumPackages) {
+             writeForceAuthorizeSubstratumPackagesOptions();
++        } else if (preference == mThemeForceEnabled) {
++            writeThemeForceEnabledOptions();
+         } else if (INACTIVE_APPS_KEY.equals(preference.getKey())) {
+             startInactiveAppsFragment();
+         } else if (BACKGROUND_CHECK_KEY.equals(preference.getKey())) {
+diff --git a/src/com/android/settings/DisplaySettings.java b/src/com/android/settings/DisplaySettings.java
+index 10e0b73447..01c0a46b44 100644
+--- a/src/com/android/settings/DisplaySettings.java
++++ b/src/com/android/settings/DisplaySettings.java
+@@ -423,7 +423,7 @@ public boolean onPreferenceChange(Preference preference, Object newValue) {
+                     false, accentColorValue, primaryColorValue) + ", " +
+                     PreviewSeekBarPreferenceFragment.getInfoText(getContext(), true,
+                     accentColorValue, primaryColorValue));
+-            if (ThemeManager.isOverlayEnabled()) {
++            if (ThemeManager.shouldOverlayEnabled(getContext())) {
+                 mThemePreference.setEnabled(false);
+                 mThemePreference.setSummary(R.string.oms_enabled);
+             }
+@@ -503,7 +503,7 @@ private void updateState() {
+                     false, accentColorValue, primaryColorValue) + ", " +
+                     PreviewSeekBarPreferenceFragment.getInfoText(getContext(), true,
+                     accentColorValue, primaryColorValue));
+-            if (ThemeManager.isOverlayEnabled()) {
++            if (ThemeManager.shouldOverlayEnabled(getContext())) {
+                 mThemePreference.setEnabled(false);
+                 mThemePreference.setSummary(R.string.oms_enabled);
+             }
+diff --git a/src/com/android/settings/DisplaySettings.java b/src/com/android/settings/DisplaySettings.java
+index 17e0b73447..01c0a46b44 100644
+--- a/src/com/android/settings/DisplaySettings.java
++++ b/src/com/android/settings/DisplaySettings.java
+@@ -284,7 +284,7 @@ public boolean onPreferenceChange(Preference preference, Object objValue) {
+                     false, accentColorValue, primaryColorValue) + ", " +
+                     PreviewSeekBarPreferenceFragment.getInfoText(getContext(), true,
+                     accentColorValue, primaryColorValue));
+-            if (ThemeManager.isOverlayEnabled()) {
++            if (ThemeManager.shouldOverlayEnabled(getContext())) {
+                 mThemePreference.setEnabled(false);
+                 mThemePreference.setSummary(R.string.oms_enabled);
+             }

@@ -1,0 +1,14 @@
+Add missing finish in GoogleCalendarUriIntentFilter
+
+diff --git a/src/com/android/calendar/GoogleCalendarUriIntentFilter.java b/src/com/android/calendar/GoogleCalendarUriIntentFilter.java
+index 309ddb1367..74018b214b 100644
+--- a/src/com/android/calendar/GoogleCalendarUriIntentFilter.java
++++ b/src/com/android/calendar/GoogleCalendarUriIntentFilter.java
+@@ -159,6 +159,7 @@ protected void onCreate(Bundle icicle) {
+ 
+                     if (eventCursor == null || eventCursor.getCount() == 0) {
+                         Log.i(TAG, "NOTE: found no matches on event with id='" + syncId + "'");
++                        finish();
+                         return;
+                     }
+                     Log.i(TAG, "NOTE: found " + eventCursor.getCount()

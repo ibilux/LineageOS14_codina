@@ -1,0 +1,39 @@
+Subject: [PATCH]  QS: WiFi easy toggle [1/2]
+
+Add an option to enable single click on the WiFi tile to turn it on or off
+
+diff --git a/res/values/cr_strings.xml b/res/values/cr_strings.xml
+index 812d4f1..d74b623 100644
+--- a/res/values/cr_strings.xml
++++ b/res/values/cr_strings.xml
+@@ -22,4 +22,9 @@
+     <string name="battery_fully_charged_sound_ringtone_title">Notification sound</string>
+     <string name="battery_fully_charged_sound_ringtone_silent">Silent</string>
+ 
++    <!-- WiFi easy toggle -->
++    <string name="quicksettings_tiles_category">QS Tiles</string>
++    <string name="qs_wifi_easy_toggle_title">WiFi tile easy toggle</string>
++    <string name="qs_wifi_easy_toggle_summary">Makes it so one click will turn WiFi on or off instead of taking you to settings</string>
++
+ </resources>
+diff --git a/res/xml/status_bar_settings.xml b/res/xml/status_bar_settings.xml
+index eb0b7d5..1f67837 100644
+--- a/res/xml/status_bar_settings.xml
++++ b/res/xml/status_bar_settings.xml
+@@ -128,4 +128,16 @@
+             android:defaultValue="false" />
+     </PreferenceCategory>
+ 
++    <PreferenceCategory
++        android:key="quicksettings_tiles"
++        android:title="@string/quicksettings_tiles_category">
++
++        <cyanogenmod.preference.SecureSettingSwitchPreference
++            android:key="qs_wifi_easy_toggle"
++            android:title="@string/qs_wifi_easy_toggle_title"
++            android:summary="@string/qs_wifi_easy_toggle_summary"
++            android:defaultValue="false" />
++
++    </PreferenceCategory>
++
+ </PreferenceScreen>

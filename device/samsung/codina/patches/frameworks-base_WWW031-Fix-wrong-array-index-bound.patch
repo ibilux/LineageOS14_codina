@@ -1,0 +1,35 @@
+Subject: [PATCH] Fix wrong array index bound in NotificationUsageStats
+
+Symptom:
+It's possible to cause ArrayIndexOutOfBoundsException.
+
+Root cause:
+There is an error in the argument check, there is a possibility of
+accessing an incorrect Index
+
+Solution:
+Fix the argument check correctly
+
+diff --git a/services/core/java/com/android/server/notification/NotificationUsageStats.java b/services/core/java/com/android/server/notification/NotificationUsageStats.java
+index 34c5283..4265741 100644
+--- a/services/core/java/com/android/server/notification/NotificationUsageStats.java
++++ b/services/core/java/com/android/server/notification/NotificationUsageStats.java
+@@ -41,6 +41,7 @@
+ import org.json.JSONObject;
+ 
+ import java.io.PrintWriter;
++import java.lang.Math;
+ import java.util.ArrayDeque;
+ import java.util.Calendar;
+ import java.util.GregorianCalendar;
+@@ -719,8 +720,8 @@
+         }
+ 
+         void increment(int imp) {
+-            imp = imp < 0 ? 0 : imp > NUM_IMPORTANCES ? NUM_IMPORTANCES : imp;
+-            mCount[imp] ++;
++            imp = Math.max(0, Math.min(imp, mCount.length - 1));
++            mCount[imp]++;
+         }
+ 
+         void maybeCount(ImportanceHistogram prev) {

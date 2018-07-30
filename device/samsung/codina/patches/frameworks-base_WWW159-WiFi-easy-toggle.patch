@@ -1,0 +1,155 @@
+Subject: [PATCH] QS: WiFi easy toggle [2/2] 
+Subject: [PATCH] QS: WiFi easy toggle: if enabled, long press for detail view 
+Subject: [PATCH] QS: Fix in the off state while entering the detail view
+Steps to duplicate the issue
+
+ - Make sure WiFi is off
+ - Enable Advanced QS easy toggle
+ - Pull down the quick settings panel
+ - Long press on the WiFi tile
+
+WiFi should be in the on state just like the location tile because
+you can see wifi scanning in detail view but since the switch is not
+on, you can't select your connection.
+
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index 04cc4944189..6e63f15f446 100644
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -6231,6 +6231,12 @@ public static boolean putFloatForUser(ContentResolver cr, String name, float val
+          */
+         public static final String WAKE_GESTURE_ENABLED = "wake_gesture_enabled";
+ 
++        /**
++         * Enable single click to turn WiFi on or off.
++         * @hide
++         */
++        public static final String QS_WIFI_EASY_TOGGLE = "qs_wifi_easy_toggle";
++
+         /**
+          * Whether the device should doze if configured.
+          * @hide
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
+index d1ff20c7809..9bdd50a624d 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
+@@ -17,6 +17,7 @@
+ package com.android.systemui.qs.tiles;
+ 
+ import android.content.Context;
++import android.content.ContentResolver;
+ import android.content.Intent;
+ import android.content.pm.PackageManager;
+ import android.content.res.Resources;
+@@ -105,18 +106,26 @@ protected void handleSecondaryClick() {
+         mState.copyTo(mStateBeforeClick);
+         MetricsLogger.action(mContext, getMetricsCategory(), !mState.value);
+         mController.setWifiEnabled(!mState.value);
++
+     }
+ 
+     @Override
+     protected void handleClick() {
+-        if (!mWifiController.canConfigWifi()) {
+-            mHost.startActivityDismissingKeyguard(new Intent(Settings.ACTION_WIFI_SETTINGS));
+-            return;
+-        }
+-        showDetail(true);
+-        if (!mState.value) {
+-            mController.setWifiEnabled(true);
+-            mState.value = true;
++        boolean easyToggle = isWiFiEasyToggleEnabled();
++        if (easyToggle) {
++            mState.copyTo(mStateBeforeClick);
++            MetricsLogger.action(mContext, getMetricsCategory(), !mState.value);
++            mController.setWifiEnabled(!mState.value);
++        } else {
++            if (!mWifiController.canConfigWifi()) {
++                mHost.startActivityDismissingKeyguard(new Intent(Settings.ACTION_WIFI_SETTINGS));
++                return;
++            }
++            if (!mState.value) {
++                mController.setWifiEnabled(true);
++                mState.value = true;
++            }
++            showDetail(true);
+         }
+     }
+ 
+@@ -189,6 +198,11 @@ protected void handleUpdateState(SignalState state, Object arg) {
+         state.minimalAccessibilityClassName = Switch.class.getName();
+     }
+ 
++    public boolean isWiFiEasyToggleEnabled() {
++        return Settings.Secure.getInt(mContext.getContentResolver(),
++                Settings.Secure.QS_WIFI_EASY_TOGGLE, 0) == 1;
++    }
++
+     @Override
+     public int getMetricsCategory() {
+         return MetricsEvent.QS_WIFI;
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
+index 00ff20c7809..9bdd50a624d 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
+@@ -97,7 +97,7 @@ public QSIconView createTileView(Context context) {
+ 
+     @Override
+     public Intent getLongClickIntent() {
+-        return WIFI_SETTINGS;
++        return null;
+     }
+ 
+     @Override
+@@ -129,6 +129,20 @@ protected void handleClick() {
+         }
+     }
+ 
++    @Override
++    protected void handleLongClick() {
++        boolean easyToggle = isWiFiEasyToggleEnabled();
++        if (easyToggle) {
++            if (!mWifiController.canConfigWifi()) {
++                mHost.startActivityDismissingKeyguard(new Intent(Settings.ACTION_WIFI_SETTINGS));
++            } else {
++                showDetail(true);
++            }
++        } else {
++            mHost.startActivityDismissingKeyguard(new Intent(Settings.ACTION_WIFI_SETTINGS));
++        }
++    }
++
+     @Override
+     public CharSequence getTileLabel() {
+         return mContext.getString(R.string.quick_settings_wifi_label);
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
+index 01ff20c7809..9bdd50a624d 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/WifiTile.java
+@@ -17,7 +17,6 @@
+ package com.android.systemui.qs.tiles;
+ 
+ import android.content.Context;
+-import android.content.ContentResolver;
+ import android.content.Intent;
+ import android.content.pm.PackageManager;
+ import android.content.res.Resources;
+@@ -106,7 +105,6 @@ protected void handleSecondaryClick() {
+         mState.copyTo(mStateBeforeClick);
+         MetricsLogger.action(mContext, getMetricsCategory(), !mState.value);
+         mController.setWifiEnabled(!mState.value);
+-
+     }
+ 
+     @Override
+@@ -136,6 +134,10 @@ protected void handleLongClick() {
+             if (!mWifiController.canConfigWifi()) {
+                 mHost.startActivityDismissingKeyguard(new Intent(Settings.ACTION_WIFI_SETTINGS));
+             } else {
++                if (!mState.value) {
++                    mController.setWifiEnabled(true);
++                    mState.value = true;
++                }
+                 showDetail(true);
+             }
+         } else {

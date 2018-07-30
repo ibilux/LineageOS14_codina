@@ -1,0 +1,24 @@
+Subject: [PATCH] Allow user to add/remove QS with one click
+
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java b/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
+index 9a3fbf40a94..7d8a9d260e5 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
+@@ -265,8 +265,16 @@ public void onLayoutChange(View v, int left, int top, int right, int bottom,
+         holder.mTileView.setAppLabel(info.appLabel);
+         holder.mTileView.setShowAppLabel(position > mEditIndex && !info.isSystem);
+ 
++        final boolean selectable = !mAccessibilityMoving || position < mEditIndex;
++        if (!(mAccessibilityManager.isTouchExplorationEnabled() && selectable)) {
++            holder.mTileView.setOnClickListener(new OnClickListener() {
++                @Override
++                public void onClick(View v) {
++                    move(holder.getAdapterPosition(), mEditIndex, holder.mTileView);
++                }
++            });
++        }
+         if (mAccessibilityManager.isTouchExplorationEnabled()) {
+-            final boolean selectable = !mAccessibilityMoving || position < mEditIndex;
+             holder.mTileView.setClickable(selectable);
+             holder.mTileView.setFocusable(selectable);
+             holder.mTileView.setImportantForAccessibility(selectable

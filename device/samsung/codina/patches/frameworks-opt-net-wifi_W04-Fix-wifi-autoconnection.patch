@@ -1,0 +1,166 @@
+Fix wifi autoconnection [3/3]
+
+diff --git a/service/java/com/android/server/wifi/Clock.java b/service/java/com/android/server/wifi/Clock.java
+index 00ff02e..201b84c 100644
+--- a/service/java/com/android/server/wifi/Clock.java
++++ b/service/java/com/android/server/wifi/Clock.java
+@@ -37,7 +37,7 @@ public long currentTimeMillis() {
+      * @return Current time since boot in milliseconds.
+      */
+     public long elapsedRealtime() {
+-        return SystemClock.elapsedRealtime();
++        return SystemClock.elapsedRealtime1();
+     }
+ 
+     /**
+@@ -56,6 +56,6 @@ public long nanoTime() {
+      * @return Current time since boot in nanoseconds.
+      */
+     public long elapsedRealtimeNanos() {
+-        return SystemClock.elapsedRealtimeNanos();
++        return SystemClock.elapsedRealtimeNanos1();
+     }
+ }
+diff --git a/service/java/com/android/server/wifi/ScanDetailCache.java b/service/java/com/android/server/wifi/ScanDetailCache.java
+index 01ff02e..201b84c 100644
+--- a/service/java/com/android/server/wifi/ScanDetailCache.java
++++ b/service/java/com/android/server/wifi/ScanDetailCache.java
+@@ -171,7 +171,7 @@ public int compare(Object o1, Object o2) {
+         WifiConfiguration.Visibility status = new WifiConfiguration.Visibility();
+ 
+         long now_ms = System.currentTimeMillis();
+-        long now_elapsed_ms = SystemClock.elapsedRealtime();
++        long now_elapsed_ms = SystemClock.elapsedRealtime1();
+         for (ScanDetail scanDetail : values()) {
+             ScanResult result = scanDetail.getScanResult();
+             if (scanDetail.getSeen() == 0) {
+diff --git a/service/java/com/android/server/wifi/WifiConfigManager.java b/service/java/com/android/server/wifi/WifiConfigManager.java
+index 02ff02e..201b84c 100644
+--- a/service/java/com/android/server/wifi/WifiConfigManager.java
++++ b/service/java/com/android/server/wifi/WifiConfigManager.java
+@@ -1786,9 +1786,9 @@ private void logContents(String file) {
+     }
+ 
+     private String readNetworkVariableFromSupplicantFile(String configKey, String key) {
+-        long start = SystemClock.elapsedRealtimeNanos();
++        long start = SystemClock.elapsedRealtimeNanos1();
+         Map<String, String> data = mWifiConfigStore.readNetworkVariablesFromSupplicantFile(key);
+-        long end = SystemClock.elapsedRealtimeNanos();
++        long end = SystemClock.elapsedRealtimeNanos1();
+ 
+         if (sVDBG) {
+             localLog("readNetworkVariableFromSupplicantFile configKey=[" + configKey + "] key="
+@@ -2693,14 +2693,14 @@ private void cacheScanResultForConfig(
+                 for (ScanDetail sd : scanDetailCache.values()) {
+                     logd("     " + sd.getBSSIDString() + " " + sd.getSeen());
+                 }
+-                now_dbg = SystemClock.elapsedRealtimeNanos();
++                now_dbg = SystemClock.elapsedRealtimeNanos1();
+             }
+             // Trim the scan result cache to MAX_NUM_SCAN_CACHE_ENTRIES entries max
+             // Since this operation is expensive, make sure it is not performed
+             // until the cache has grown significantly above the trim treshold
+             scanDetailCache.trim(MAX_NUM_SCAN_CACHE_ENTRIES);
+             if (sVVDBG) {
+-                long diff = SystemClock.elapsedRealtimeNanos() - now_dbg;
++                long diff = SystemClock.elapsedRealtimeNanos1() - now_dbg;
+                 logd(" Finished trimming config, time(ns) " + diff);
+                 for (ScanDetail sd : scanDetailCache.values()) {
+                     logd("     " + sd.getBSSIDString() + " " + sd.getSeen());
+diff --git a/service/java/com/android/server/wifi/WifiController.java b/service/java/com/android/server/wifi/WifiController.java
+index 0375603..a87f9f9 100644
+--- a/service/java/com/android/server/wifi/WifiController.java
++++ b/service/java/com/android/server/wifi/WifiController.java
+@@ -458,7 +458,7 @@ public boolean processMessage(Message msg) {
+         public void enter() {
+             mWifiStateMachine.setSupplicantRunning(false);
+             // Supplicant can't restart right away, so not the time we switched off
+-            mDisabledTimestamp = SystemClock.elapsedRealtime();
++            mDisabledTimestamp = SystemClock.elapsedRealtime1();
+             mDeferredEnableSerialNumber++;
+             mHaveDeferredEnable = false;
+             mWifiStateMachine.clearANQPCache();
+@@ -524,7 +524,7 @@ public boolean processMessage(Message msg) {
+         }
+ 
+         private boolean doDeferEnable(Message msg) {
+-            long delaySoFar = SystemClock.elapsedRealtime() - mDisabledTimestamp;
++            long delaySoFar = SystemClock.elapsedRealtime1() - mDisabledTimestamp;
+             if (delaySoFar >= mReEnableDelayMillis) {
+                 return false;
+             }
+@@ -700,7 +700,7 @@ public void enter() {
+             mWifiStateMachine.setSupplicantRunning(true);
+             mWifiStateMachine.setDriverStart(true);
+             // Supplicant can't restart right away, so not the time we switched off
+-            mDisabledTimestamp = SystemClock.elapsedRealtime();
++            mDisabledTimestamp = SystemClock.elapsedRealtime1();
+             mDeferredEnableSerialNumber++;
+             mHaveDeferredEnable = false;
+             mWifiStateMachine.clearANQPCache();
+@@ -760,7 +760,7 @@ public boolean processMessage(Message msg) {
+         }
+ 
+         private boolean doDeferEnable(Message msg) {
+-            long delaySoFar = SystemClock.elapsedRealtime() - mDisabledTimestamp;
++            long delaySoFar = SystemClock.elapsedRealtime1() - mDisabledTimestamp;
+             if (delaySoFar >= mReEnableDelayMillis) {
+                 return false;
+             }
+diff --git a/service/java/com/android/server/wifi/WifiNative.java b/service/java/com/android/server/wifi/WifiNative.java
+index 04aabcf..099ab5d 100644
+--- a/service/java/com/android/server/wifi/WifiNative.java
++++ b/service/java/com/android/server/wifi/WifiNative.java
+@@ -478,7 +478,7 @@ public boolean removeNetwork(int netId) {
+ 
+ 
+     private void logDbg(String debug) {
+-        long now = SystemClock.elapsedRealtimeNanos();
++        long now = SystemClock.elapsedRealtimeNanos1();
+         String ts = String.format("[%,d us] ", now/1000);
+         Log.e("WifiNative: ", ts+debug+ " stack:"
+                 + Thread.currentThread().getStackTrace()[2].getMethodName() +" - "
+@@ -2737,7 +2737,7 @@ private static String frameTypeToString(byte frameType) {
+          */
+         private static long convertDriverTimestampUSecToWallclockMSec(long driverTimestampUSec) {
+             final long wallclockMillisNow = System.currentTimeMillis();
+-            final long boottimeMillisNow = SystemClock.elapsedRealtime();
++            final long boottimeMillisNow = SystemClock.elapsedRealtime1();
+             final long driverTimestampMillis = driverTimestampUSec / USEC_PER_MSEC;
+ 
+             long boottimeTimestampMillis = boottimeMillisNow % MAX_DRIVER_TIMESTAMP_MSEC;
+diff --git a/service/java/com/android/server/wifi/WifiServiceImpl.java b/service/java/com/android/server/wifi/WifiServiceImpl.java
+index 05aabcf..099ab5d 100644
+--- a/service/java/com/android/server/wifi/WifiServiceImpl.java
++++ b/service/java/com/android/server/wifi/WifiServiceImpl.java
+@@ -862,7 +862,7 @@ public WifiActivityEnergyInfo reportActivityInfo() {
+                 }
+ 
+                 // Convert the LinkLayerStats into EnergyActivity
+-                energyInfo = new WifiActivityEnergyInfo(SystemClock.elapsedRealtime(),
++                energyInfo = new WifiActivityEnergyInfo(SystemClock.elapsedRealtime1(),
+                         WifiActivityEnergyInfo.STACK_STATE_STATE_IDLE, stats.tx_time,
+                         txTimePerLevel, stats.rx_time, rxIdleTime, energyUsed);
+             }
+diff --git a/service/java/com/android/server/wifi/WifiStateMachine.java b/service/java/com/android/server/wifi/WifiStateMachine.java
+index 06aabcf..099ab5d 100644
+--- a/service/java/com/android/server/wifi/WifiStateMachine.java
++++ b/service/java/com/android/server/wifi/WifiStateMachine.java
+@@ -2549,7 +2549,7 @@ private void logStateAndMessage(Message message, State state) {
+     String printTime() {
+         StringBuilder sb = new StringBuilder();
+         sb.append(" rt=").append(SystemClock.uptimeMillis());
+-        sb.append("/").append(SystemClock.elapsedRealtime());
++        sb.append("/").append(SystemClock.elapsedRealtime1());
+         return sb.toString();
+     }
+ 
+@@ -5833,7 +5833,7 @@ public boolean processMessage(Message message) {
+                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
+                     break;
+                 case CMD_ENABLE_ALL_NETWORKS:
+-                    long time = android.os.SystemClock.elapsedRealtime();
++                    long time = android.os.SystemClock.elapsedRealtime1();
+                     if (time - mLastEnableAllNetworksTime > MIN_INTERVAL_ENABLE_ALL_NETWORKS_MS) {
+                         mWifiConfigManager.enableAllNetworks();
+                         mLastEnableAllNetworksTime = time;

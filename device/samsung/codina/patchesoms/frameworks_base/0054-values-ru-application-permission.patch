@@ -1,0 +1,15 @@
+diff --git a/core/res/res/values-ru/cm_strings.xml b/core/res/res/values-ru/cm_strings.xml
+index d3df61ba194..4a16df0da00 100755
+--- a/core/res/res/values-ru/cm_strings.xml
++++ b/core/res/res/values-ru/cm_strings.xml
+@@ -131,6 +131,10 @@
+   <string name="app_ops_run_in_background">работать в фоновом режиме</string>
+   <string name="app_ops_wifi_change">изменить состояние Wi-Fi</string>
+   <string name="app_ops_su">получить права суперпользователя</string>
++  <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
++  <string name="permlab_modifyOverlays">изменить слои темы</string>
++  <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
++  <string name="permdesc_modifyOverlays">Позволить приложению изменять слои темы используя OverlayManagerService</string>
+   <!-- Protected Apps Notification -->
+   <string name="notify_package_component_protected_title">Запуск приложения запрещён</string>
+   <string name="notify_package_component_protected_text">Приложение «<xliff:g id="app_name">%1$s</xliff:g>» заблокировано. Нажмите, чтобы ввести пароль и запустить приложение.</string>

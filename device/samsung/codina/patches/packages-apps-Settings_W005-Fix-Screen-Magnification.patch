@@ -1,0 +1,27 @@
+Subject: [PATCH] Fix Screen Magnification recursive draw
+
+When invoke the method View#setLayoutParams(), ViewRootImpl
+will run method ViewRootImpl#performTraversals(). And
+OnGlobalLayoutListener#onGlobalLayout() will be invoked.
+When the method View#setLayoutParams() is invoked in
+OnGlobalLayoutListener#onGlobalLayout(), there will be recursive
+call. The view will be draw on and on. This situation happen in
+Screen Magnification. It should remove the listener after
+work completion.
+
+Test: use systrace when enter Screen Magnification,and view the
+"traversal" times.
+
+diff --git a/src/com/android/settings/accessibility/ToggleScreenMagnificationPreferenceFragment.java b/src/com/android/settings/accessibility/ToggleScreenMagnificationPreferenceFragment.java
+index e6a8c1e..669d51e 100644
+--- a/src/com/android/settings/accessibility/ToggleScreenMagnificationPreferenceFragment.java
++++ b/src/com/android/settings/accessibility/ToggleScreenMagnificationPreferenceFragment.java
+@@ -98,6 +98,8 @@
+                     videoView.setLayoutParams(videoLp);
+                     videoView.invalidate();
+                     videoView.start();
++                    mVideoBackgroundView.getViewTreeObserver()
++                            .removeOnGlobalLayoutListener(mLayoutListener);
+                 }
+             };
+ 

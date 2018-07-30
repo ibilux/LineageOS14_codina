@@ -1,0 +1,33 @@
+Subject: [PATCH] Fix PremiumSmsAccess memory leak
+
+[Cause of Defect]
+PremiumSmsAccess forget to invoke Session and AppStateSmsPremBridge
+release method in the onDestroy callback.
+And that would lead to the leak of activity context.
+
+Test: 1. Settings - Apps - Advanced - Special access - Premium SMS access
+      2. adb shell dumpsys meminfo com.android.settings
+      3. observe activity object number
+      4. back to the last page
+      5. use AS trigger Settings gc several times
+      6. adb shell dumpsys meminfo com.android.settings
+      7. observe activity object number to check if the activity number decrease
+
+diff --git a/src/com/android/settings/applications/PremiumSmsAccess.java b/src/com/android/settings/applications/PremiumSmsAccess.java
+index c4bb1a8..1bc561b 100644
+--- a/src/com/android/settings/applications/PremiumSmsAccess.java
++++ b/src/com/android/settings/applications/PremiumSmsAccess.java
+@@ -76,6 +76,13 @@
+     }
+ 
+     @Override
++    public void onDestroy() {
++        mSmsBackend.release();
++        mSession.release();
++        super.onDestroy();
++    }
++
++    @Override
+     protected int getMetricsCategory() {
+         return MetricsProto.MetricsEvent.PREMIUM_SMS_ACCESS;
+     }

@@ -1,0 +1,47 @@
+calendar: update actionbar colors
+
+diff --git a/res/layout/actionbar_pulldown_menu_top_button.xml b/res/layout/actionbar_pulldown_menu_top_button.xml
+index 409ddb1367..74018b214b 100644
+--- a/res/layout/actionbar_pulldown_menu_top_button.xml
++++ b/res/layout/actionbar_pulldown_menu_top_button.xml
+@@ -31,7 +31,7 @@
+         android:layout_marginBottom="-8dip"
+         android:layout_alignParentTop="true"
+         android:layout_alignParentStart="true"
+-        android:textColor="@color/calendar_view_switch_menu_text_color"
++        android:textColor="@color/white"
+         android:gravity="start" />
+ 
+     <TextView android:id="@+id/top_button_lunar"
+@@ -43,7 +43,7 @@
+         android:layout_toEndOf="@id/top_button_weekday"
+         android:singleLine="true"
+         android:textSize="12sp"
+-        android:textColor="@color/calendar_view_switch_menu_text_color"
++        android:textColor="@color/white"
+         android:gravity="start" />
+ 
+     <TextView android:id="@+id/top_button_date"
+@@ -53,7 +53,6 @@
+         android:layout_below="@id/top_button_weekday"
+         android:singleLine="true"
+         android:textSize="@dimen/action_bar_date_text_size"
+-        android:textColor="@color/calendar_view_switch_menu_text_color"
++        android:textColor="@color/white"
+         android:gravity="start" />
+-</RelativeLayout>
+-
++</RelativeLayout>
+diff --git a/src/com/android/calendar/DayOfMonthDrawable.java b/src/com/android/calendar/DayOfMonthDrawable.java
+index 415dd5ce06..7836644806 100644
+--- a/src/com/android/calendar/DayOfMonthDrawable.java
++++ b/src/com/android/calendar/DayOfMonthDrawable.java
+@@ -40,7 +40,7 @@
+         mTextSize = c.getResources().getDimension(R.dimen.today_icon_text_size);
+         mPaint = new Paint();
+         mPaint.setAlpha(255);
+-        mPaint.setColor(0xFF000000);
++        mPaint.setColor(0xFFFFFFFF);
+         mPaint.setTypeface(Typeface.DEFAULT_BOLD);
+         mPaint.setTextSize(mTextSize);
+         mPaint.setTextAlign(Paint.Align.CENTER);

@@ -1,0 +1,2 @@
+# sleep 50
+echo 5017f > /sys/kernel/liveopp/pllddr

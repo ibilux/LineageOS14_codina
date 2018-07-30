@@ -1,0 +1,28 @@
+Subject: [PATCH] Fixed uninstall validateInstallLocked crash
+
+when partial package not install
+
+reproduce:
+adb shell pm uninstall com.xxx xxxx
+
+error:
+java.lang.NullPointerException: Attempt to read from field 
+'java.lang.String[] android.content.pm.PackageInfo.splitNames' on a null object reference
+
+diff --git a/services/core/java/com/android/server/pm/PackageInstallerSession.java b/services/core/java/com/android/server/pm/PackageInstallerSession.java
+index 8936639..5d54028 100644
+--- a/services/core/java/com/android/server/pm/PackageInstallerSession.java
++++ b/services/core/java/com/android/server/pm/PackageInstallerSession.java
+@@ -760,6 +760,12 @@
+         }
+ 
+         if (removeSplitList.size() > 0) {
++            // Partial installs must be consistent with existing install
++            if (pkgInfo == null) {
++                throw new PackageManagerException(INSTALL_FAILED_INVALID_APK,
++                        "Missing existing base package for " + mPackageName);
++            }
++
+             // validate split names marked for removal
+             for (String splitName : removeSplitList) {
+                 if (!ArrayUtils.contains(pkgInfo.splitNames, splitName)) {

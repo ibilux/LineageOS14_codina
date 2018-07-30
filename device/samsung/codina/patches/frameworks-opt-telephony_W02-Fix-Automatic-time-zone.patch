@@ -1,0 +1,36 @@
+Subject: [PATCH] Fix Automatic time zone not working when no NITZ received.
+
+When there is no NITZ time zone received from NW. Device will use unique
+time zone by NW MCC Country ISO. In fixTimeZone method, if no NITZ time
+zone received, saveNitzTimeZone method should not be called. Otherwise,
+time zone will be fixed to system default time zone and cannot update by
+Country ISO.
+
+diff --git a/src/java/com/android/internal/telephony/ServiceStateTracker.java b/src/java/com/android/internal/telephony/ServiceStateTracker.java
+index d5f6997..3e8f268 100644
+--- a/src/java/com/android/internal/telephony/ServiceStateTracker.java
++++ b/src/java/com/android/internal/telephony/ServiceStateTracker.java
+@@ -3519,8 +3519,6 @@
+             if (DBG) log("fixTimeZone: using getTimeZone(off, dst, time, iso)");
+         }
+ 
+-        mNeedFixZoneAfterNitz = false;
+-
+         if (zone != null) {
+             log("fixTimeZone: zone != null zone.getID=" + zone.getID());
+             if (getAutoTimeZone()) {
+@@ -3528,10 +3526,13 @@
+             } else {
+                 log("fixTimeZone: skip changing zone as getAutoTimeZone was false");
+             }
+-            saveNitzTimeZone(zone.getID());
++            if (mNeedFixZoneAfterNitz) {
++                saveNitzTimeZone(zone.getID());
++            }
+         } else {
+             log("fixTimeZone: zone == null, do nothing for zone");
+         }
++        mNeedFixZoneAfterNitz = false;
+     }
+ 
+     /**

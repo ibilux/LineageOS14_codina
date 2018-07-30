@@ -1,0 +1,39 @@
+Subject: [PATCH] Fix AddAccountSettings memory leak
+
+The memory leak will always occur in AddAccoutSettings
+when a null Bundle is returned in the addAccount we implement.
+
+Test: Install the app through the github i have offered in above link,
+then press the "Test" item in ChooseAccountActivity (adb shell am start -n
+'com.android.settings/.accounts.ChooseAccountActivity') serveal times.
+Check the activity number by "adb shell dumpsys meminfo com.android.settings".
+
+diff --git a/core/java/android/accounts/AbstractAccountAuthenticator.java b/core/java/android/accounts/AbstractAccountAuthenticator.java
+index 87e512c..7ca65a4 100644
+--- a/core/java/android/accounts/AbstractAccountAuthenticator.java
++++ b/core/java/android/accounts/AbstractAccountAuthenticator.java
+@@ -175,6 +175,9 @@
+                 }
+                 if (result != null) {
+                     response.onResult(result);
++                } else {
++                    response.onError(AccountManager.ERROR_CODE_INVALID_RESPONSE,
++                            "null bundle returned");
+                 }
+             } catch (Exception e) {
+                 handleException(response, "addAccount", accountType, e);
+diff --git a/core/java/android/accounts/AccountManager.java b/core/java/android/accounts/AccountManager.java
+index a446296..d22e268 100644
+--- a/core/java/android/accounts/AccountManager.java
++++ b/core/java/android/accounts/AccountManager.java
+@@ -2052,6 +2052,10 @@
+         private class Response extends IAccountManagerResponse.Stub {
+             @Override
+             public void onResult(Bundle bundle) {
++                if (bundle == null) {
++                    onError(ERROR_CODE_INVALID_RESPONSE, "null bundle returned");
++                    return;
++                }
+                 Intent intent = bundle.getParcelable(KEY_INTENT);
+                 if (intent != null && mActivity != null) {
+                     // since the user provided an Activity we will silently start intents

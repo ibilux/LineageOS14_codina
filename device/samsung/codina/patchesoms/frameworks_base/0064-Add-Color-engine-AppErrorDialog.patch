@@ -1,0 +1,78 @@
+Subject: [PATCH] AppErrorDialog: Add Color engine support
+
+diff --git a/core/res/res/values/styles.xml b/core/res/res/values/styles.xml
+index 937428b12c6..d4f35ba328b 100644
+--- a/core/res/res/values/styles.xml
++++ b/core/res/res/values/styles.xml
+@@ -1406,7 +1406,7 @@ please see styles_device_defaults.xml.
+     <style name="aerr_list_item" parent="Widget.Material.Light.Button.Borderless">
+         <item name="minHeight">?attr/listPreferredItemHeightSmall</item>
+         <item name="textAppearance">?attr/textAppearanceListItemSmall</item>
+-        <item name="textColor">?attr/textColorAlertDialogListItem</item>
++        <item name="textColor">@*android:color/primary_text_material_light</item>
+         <item name="gravity">center_vertical</item>
+         <item name="paddingStart">?attr/dialogPreferredPadding</item>
+         <item name="paddingEnd">?attr/dialogPreferredPadding</item>
+diff --git a/services/core/java/com/android/server/am/AppErrorDialog.java b/services/core/java/com/android/server/am/AppErrorDialog.java
+index 646f6ce0653..c527d1d894a 100644
+--- a/services/core/java/com/android/server/am/AppErrorDialog.java
++++ b/services/core/java/com/android/server/am/AppErrorDialog.java
+@@ -16,6 +16,8 @@
+ 
+ package com.android.server.am;
+ 
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
+ import android.content.BroadcastReceiver;
+ import android.content.Context;
+ import android.content.Intent;
+@@ -59,6 +61,9 @@
+     // 5-minute timeout, then we automatically dismiss the crash dialog
+     static final long DISMISS_TIMEOUT = 1000 * 60 * 5;
+ 
++    private int sTheme;
++    private ThemeManager mThemeManager;
++
+     public AppErrorDialog(Context context, ActivityManagerService service, Data data) {
+         super(context);
+         Resources res = context.getResources();
+@@ -108,6 +113,19 @@ protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+         final FrameLayout frame = (FrameLayout) findViewById(android.R.id.custom);
+         final Context context = getContext();
++
++        final int themeMode = Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) context.getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            context.getTheme().applyStyle(sTheme, true);
++        }
++
+         LayoutInflater.from(context).inflate(
+                 com.android.internal.R.layout.app_error_dialog, frame, true);
+ 
+@@ -133,6 +151,19 @@ protected void onCreate(Bundle savedInstanceState) {
+         findViewById(com.android.internal.R.id.customPanel).setVisibility(View.VISIBLE);
+     }
+ 
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            sTheme = color;
++        }
++    };
++
+     @Override
+     public void onStart() {
+         super.onStart();

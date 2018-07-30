@@ -1,0 +1,29 @@
+Subject: [PATCH 51/54] OMS: StrictMode and files under /data/system/theme/
+
+Themes are using /data/system/theme/ to push some files like LowBattery.ogg (audio notification)
+When the device battery trigger the low battery state, the sound is not played due
+to StrictMode and SystemUI is crashing.
+
+So we need that StrictMode authorize files under /system OR /data/system/theme
+
+Logcat of the issue:
+
+ E AndroidRuntime: Caused by: android.os.FileUriExposedException: file:///data/system/theme/audio/ui/LowBattery.ogg 
+ exposed beyond app through Notification.sound
+ E AndroidRuntime:        at android.os.StrictMode.onFileUriExposed(StrictMode.java:1799)
+ E AndroidRuntime:        at android.net.Uri.checkFileUriExposed(Uri.java:2346)
+ E AndroidRuntime:        at android.app.NotificationManager.notifyAsUser(NotificationManager.java:300)
+
+diff --git a/core/java/android/net/Uri.java b/core/java/android/net/Uri.java
+index 09af05c0dfb..3fd40428efb 100644
+--- a/core/java/android/net/Uri.java
++++ b/core/java/android/net/Uri.java
+@@ -2351,7 +2351,7 @@ public abstract class Uri implements Parcelable, Comparable<Uri> {
+      */
+     public void checkFileUriExposed(String location) {
+         if ("file".equals(getScheme()) && !(getPath().startsWith("/system/")
+-                || getPath().startsWith("/storage/") || getPath().startsWith("/data/"))) {
++                || getPath().startsWith("/data/system/theme/"))) {
+             StrictMode.onFileUriExposed(this, location);
+         }
+     }

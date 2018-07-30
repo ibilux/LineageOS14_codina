@@ -1,0 +1,27 @@
+Subject: [PATCH] Battery Fully Charged Sound [3/3]
+
+diff --git a/sdk/src/java/cyanogenmod/providers/CMSettings.java b/sdk/src/java/cyanogenmod/providers/CMSettings.java
+index 3c715d3..e3d6237 100644
+--- a/sdk/src/java/cyanogenmod/providers/CMSettings.java
++++ b/sdk/src/java/cyanogenmod/providers/CMSettings.java
+@@ -3499,6 +3499,12 @@ public static boolean putFloatForUser(ContentResolver cr, String name, float val
+          */
+         public static final String POWER_NOTIFICATIONS_RINGTONE = "power_notifications_ringtone";
+ 
++        /**
++         * URI for battery fully charged sounds
++         * @hide
++         */
++        public static final String BATTERY_FULLY_CHARGED_RINGTONE = "battery_fully_charged_ringtone";
++
+         /**
+          * @hide
+          */
+@@ -3542,6 +3548,7 @@ public static boolean putFloatForUser(ContentResolver cr, String name, float val
+                 CMSettings.Global.WAKE_WHEN_PLUGGED_OR_UNPLUGGED,
+                 CMSettings.Global.POWER_NOTIFICATIONS_VIBRATE,
+                 CMSettings.Global.POWER_NOTIFICATIONS_RINGTONE,
++                CMSettings.Global.BATTERY_FULLY_CHARGED_RINGTONE,
+                 CMSettings.Global.ZEN_DISABLE_DUCKING_DURING_MEDIA_PLAYBACK,
+                 CMSettings.Global.WIFI_AUTO_PRIORITIES_CONFIGURATION
+         };

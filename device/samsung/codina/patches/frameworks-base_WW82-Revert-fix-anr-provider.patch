@@ -1,0 +1,106 @@
+Subject: [PATCH] Revert fix anr when concurrent request provider
+
+anr reason:
+ 1. system_server process: each binder thread is  waiting for provider publish,
+so there is no idle binder thread;
+ 2. providerTest process: process which contains target provider
+ is publishing Content Provider, so binder call to system_server,
+but no idle binder thread in system_server.
+
+diff --git a/core/java/android/app/ActivityThread.java b/core/java/android/app/ActivityThread.java
+index 3234cf6..eb257c5 100644
+--- a/core/java/android/app/ActivityThread.java
++++ b/core/java/android/app/ActivityThread.java
+@@ -293,8 +293,6 @@
+     // The lock of mProviderMap protects the following variables.
+     final ArrayMap<ProviderKey, ProviderClientRecord> mProviderMap
+         = new ArrayMap<ProviderKey, ProviderClientRecord>();
+-    final ArrayMap<ProviderKey, ProviderAcquiringCount> mProviderAcquiringCountMap
+-        = new ArrayMap<>();
+     final ArrayMap<IBinder, ProviderRefCount> mProviderRefCountMap
+         = new ArrayMap<IBinder, ProviderRefCount>();
+     final ArrayMap<IBinder, ProviderClientRecord> mLocalProviders
+@@ -3850,14 +3848,6 @@
+         }
+     }
+ 
+-    static final class ProviderAcquiringCount {
+-        public int acquiringCount;
+-
+-        ProviderAcquiringCount(int aCount) {
+-            acquiringCount = aCount;
+-        }
+-    }
+-
+     /**
+      * Core implementation of stopping an activity.  Note this is a little
+      * tricky because the server's meaning of stop is slightly different
+@@ -5525,21 +5515,9 @@
+ 
+     public final IContentProvider acquireProvider(
+             Context c, String auth, int userId, boolean stable) {
+-        final ProviderKey key = new ProviderKey(auth, userId);
+-        final IContentProvider provider = acquireExistingProvider(c, key, stable);
++        final IContentProvider provider = acquireExistingProvider(c, auth, userId, stable);
+         if (provider != null) {
+             return provider;
+-        }
+-
+-        ProviderAcquiringCount pac;
+-        synchronized (mProviderMap) {
+-            pac = mProviderAcquiringCountMap.get(key);
+-            if (pac == null) {
+-                pac = new ProviderAcquiringCount(1);
+-                mProviderAcquiringCountMap.put(key, pac);
+-            } else {
+-                pac.acquiringCount++;
+-            }
+         }
+ 
+         // There is a possible race here.  Another thread may try to acquire
+@@ -5549,17 +5527,11 @@
+         // provider since it might take a long time to run and it could also potentially
+         // be re-entrant in the case where the provider is in the same process.
+         IActivityManager.ContentProviderHolder holder = null;
+-        synchronized (pac) {
+-            try {
+-                holder = ActivityManagerNative.getDefault().getContentProvider(
+-                        getApplicationThread(), auth, userId, stable);
+-            } catch (RemoteException ex) {
+-            }
+-        }
+-        synchronized (mProviderMap) {
+-            if(--pac.acquiringCount == 0) {
+-                mProviderAcquiringCountMap.remove(key);
+-            }
++        try {
++            holder = ActivityManagerNative.getDefault().getContentProvider(
++                    getApplicationThread(), auth, userId, stable);
++        } catch (RemoteException ex) {
++            throw ex.rethrowFromSystemServer();
+         }
+         if (holder == null) {
+             Slog.e(TAG, "Failed to find provider info for " + auth);
+@@ -5643,12 +5615,8 @@
+ 
+     public final IContentProvider acquireExistingProvider(
+             Context c, String auth, int userId, boolean stable) {
+-        return acquireExistingProvider(c, new ProviderKey(auth, userId), stable);
+-    }
+-
+-    public final IContentProvider acquireExistingProvider(
+-            Context c, ProviderKey key, boolean stable) {
+         synchronized (mProviderMap) {
++            final ProviderKey key = new ProviderKey(auth, userId);
+             final ProviderClientRecord pr = mProviderMap.get(key);
+             if (pr == null) {
+                 return null;
+@@ -5659,7 +5627,7 @@
+             if (!jBinder.isBinderAlive()) {
+                 // The hosting process of the provider has died; we can't
+                 // use this one.
+-                Log.i(TAG, "Acquiring provider " + key.authority + " for user " + key.userId
++                Log.i(TAG, "Acquiring provider " + auth + " for user " + userId
+                         + ": existing object's process dead");
+                 handleUnstableProviderDiedLocked(jBinder, true);
+                 return null;

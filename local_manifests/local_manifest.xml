@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <remote  name="omnirom"
+           review="gerrit.omnirom.org"
+           fetch="https://github.com/omnirom" />
+
+  <remote  name="bb"
+           fetch="https://bitbucket.org/" />
+
+  <remote  name="substratum"
+           fetch="https://github.com/"
+           review="http://substratum.review" />
+
+  <!-- Infrastructure -->
+  <remove-project path="lineage/crowdin" name="LineageOS/cm_crowdin" groups="infra" revision="master" />
+  <remove-project path="lineage/cve" name="LineageOS/cve_tracker" groups="infra" revision="master" />
+  <remove-project path="lineage/jenkins" name="LineageOS/hudson" groups="infra" revision="master" />
+  <remove-project path="lineage/mirror" name="LineageOS/mirror" groups="infra" revision="master" />
+  <remove-project path="lineage/website" name="LineageOS/www" groups="infra" revision="master" />
+  <remove-project path="lineage/wiki" name="LineageOS/lineage_wiki" groups="infra" revision="master" />
+
+  <!--remove -->
+  <remove-project path="bootable/recovery" name="LineageOS/android_bootable_recovery" groups="pdk" />
+
+  <!-- omnirom -->
+  <project path="bootable/recovery" name="android_bootable_recovery" remote="omnirom" revision="android-7.1" groups="pdk-cw-fs"/>
+  <!-- omnirom -->
+  <project path="external/busybox" name="android_external_busybox" remote="omnirom" revision="android-7.1" />
+
+  <!-- START of CyanogenMod
+  <project path="external/busybox" name="LineageOS/android_external_busybox" remote="github" revision="cm-14.1" /> -->
+  <project path="external/stlport" name="LineageOS/android_external_stlport" remote="github" revision="cm-14.1" />
+
+  <!-- arm toolchains -->
+  <project path="prebuilts/gcc/linux-x86/arm/arm-eabi-4.9-linaro" name="UBERTC/arm-eabi-4.9" remote="bb" revision="master" />
+  <project path="prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9-linaro" name="UBERTC/arm-linux-androideabi-4.9" remote="bb" revision="master" />
+
+  <!-- Snap
+  <remove-project path="packages/apps/Snap" name="LineageOS/android_packages_apps_Snap" />
+  <project path="packages/apps/Snap" name="LineageOS/android_packages_apps_Snap" remote="github" revision="cm-14.1-old" /> -->
+
+  <!-- CyanogenMod -->
+  <project path="packages/apps/SoundRecorder" name="LineageOS/android_packages_apps_SoundRecorder" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/CMFileManager" name="LineageOS/android_packages_apps_CMFileManager" remote="github" revision="cm-14.1" />
+  <project path="external/libtruezip" name="LineageOS/android_external_libtruezip" remote="github" revision="cm-14.1" />
+
+  <!-- arter97 -->
+  <remove-project path="external/jemalloc" name="LineageOS/android_external_jemalloc" groups="pdk" />
+  <project path="external/jemalloc" name="arter97/android_external_jemalloc" remote="github" revision="nougat-mr1" />
+
+  <!--MusicFX -->
+  <project path="packages/apps/MusicFX" name="nitrogen-project/android_packages_apps_MusicFX" remote="github" revision="n2" />
+
+  <project path="packages/services/ThemeInterfacer" name="substratum/interfacer" remote="substratum" revision="n-rootless" />
+
+</manifest>

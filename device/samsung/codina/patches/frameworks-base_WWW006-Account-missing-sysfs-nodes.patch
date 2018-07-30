@@ -1,0 +1,98 @@
+Subject: [PATCH] KernelCpuSpeedReader: Account for missing sysfs nodes
+
+It is possible that after CPU/cluster hotplugging
+the cpufreq stats sysfs nodes don't get recreated.
+
+In that case we would be encountering a lot of failed
+read attempts which are obsolete.
+
+As solution, this adds a detection mechanism
+which checks the cpu online status and implements
+a failure counter.
+The failure counter gets incremented every time
+a read attempt to the stats sysfs node fails while
+the cpu was online.
+Once the failure counter reaches MAX_READ_TRIES (3 by default),
+no more read attempts are made.
+
+diff --git a/core/java/com/android/internal/os/KernelCpuSpeedReader.java b/core/java/com/android/internal/os/KernelCpuSpeedReader.java
+index 3f6ebb9..b167699 100644
+--- a/core/java/com/android/internal/os/KernelCpuSpeedReader.java
++++ b/core/java/com/android/internal/os/KernelCpuSpeedReader.java
+@@ -37,18 +37,25 @@
+ public class KernelCpuSpeedReader {
+     private static final String TAG = "KernelCpuSpeedReader";
+ 
+-    private final String mProcFile;
++    private final String mProcFileStats, mProcFileOnline;
+     private final long[] mLastSpeedTimes;
+     private final long[] mDeltaSpeedTimes;
+ 
+     // How long a CPU jiffy is in milliseconds.
+     private final long mJiffyMillis;
+ 
++    // The maximum amount of read attempts
++    private final int MAX_READ_TRIES = 3;
++
++    private int mFailureCount;
++
+     /**
+      * @param cpuNumber The cpu (cpu0, cpu1, etc) whose state to read.
+      */
+     public KernelCpuSpeedReader(int cpuNumber, int numSpeedSteps) {
+-        mProcFile = String.format("/sys/devices/system/cpu/cpu%d/cpufreq/stats/time_in_state",
++        mProcFileStats = String.format("/sys/devices/system/cpu/cpu%d/cpufreq/stats/time_in_state",
++                cpuNumber);
++        mProcFileOnline = String.format("/sys/devices/system/cpu/cpu%d/online",
+                 cpuNumber);
+         mLastSpeedTimes = new long[numSpeedSteps];
+         mDeltaSpeedTimes = new long[numSpeedSteps];
+@@ -57,12 +64,36 @@
+     }
+ 
+     /**
++     * This checks whether the system is possibly affected
++     * by the bug where the stats interface disappears from sysfs.
++     * @return the result of this check
++     */
++    private boolean checkForSysFsBug() {
++        try (BufferedReader reader = new BufferedReader(new FileReader(mProcFileOnline))) {
++            String line;
++            if ((line = reader.readLine()) != null) {
++                final int cpuonline = Integer.parseInt(line);
++                return cpuonline > 0;
++            }
++        } catch (IOException | NumberFormatException e) {
++            Slog.e(TAG, "Failed to read cpu online status: " + e.getMessage());
++        }
++        return false;
++    }
++
++    /**
+      * The returned array is modified in subsequent calls to {@link #readDelta}.
+      * @return The time (in milliseconds) spent at different cpu speeds since the last call to
+      * {@link #readDelta}.
+      */
+     public long[] readDelta() {
+-        try (BufferedReader reader = new BufferedReader(new FileReader(mProcFile))) {
++        // Return if we encountered too many read failures already
++        if (mFailureCount >= MAX_READ_TRIES) {
++            Arrays.fill(mDeltaSpeedTimes, 0);
++            return mDeltaSpeedTimes;
++        }
++
++        try (BufferedReader reader = new BufferedReader(new FileReader(mProcFileStats))) {
+             TextUtils.SimpleStringSplitter splitter = new TextUtils.SimpleStringSplitter(' ');
+             String line;
+             int speedIndex = 0;
+@@ -84,6 +115,10 @@
+         } catch (IOException e) {
+             Slog.e(TAG, "Failed to read cpu-freq: " + e.getMessage());
+             Arrays.fill(mDeltaSpeedTimes, 0);
++            if (checkForSysFsBug()) {
++                // Increment the failure counter based on the detection result
++                mFailureCount++;
++            }
+         }
+         return mDeltaSpeedTimes;
+     }

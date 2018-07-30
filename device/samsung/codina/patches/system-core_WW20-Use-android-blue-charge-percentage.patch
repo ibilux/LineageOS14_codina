@@ -1,0 +1,36 @@
+Subject: [PATCH] healthd: Use android blue for charge percentage
+
+diff --git a/healthd/healthd_mode_charger.cpp b/healthd/healthd_mode_charger.cpp
+index 0402c87..2d8d4f7 100644
+--- a/healthd/healthd_mode_charger.cpp
++++ b/healthd/healthd_mode_charger.cpp
+@@ -402,9 +402,9 @@
+     return y + char_height;
+ }
+ 
+-static void android_green(void)
++static void android_blue(void)
+ {
+-    gr_color(0xa4, 0xc6, 0x39, 255);
++    gr_color(0, 191, 255, 255);
+ }
+ 
+ // Negative x or y coordinates position the text away from the opposite edge that positive ones do.
+@@ -507,7 +507,7 @@
+     if (charger->surf_unknown) {
+         draw_surface_centered(charger->surf_unknown);
+     } else {
+-        android_green();
++        android_blue();
+         y = draw_text("Charging!", -1, -1);
+         draw_text("?\?/100", -1, y + 25);
+     }
+@@ -541,7 +541,7 @@
+     str_len_px = gr_measure(gr_sys_font(), cap_str);
+     x = (gr_fb_width() - str_len_px) / 2;
+     y = (gr_fb_height() + char_height) / 2;
+-    android_green();
++    android_blue();
+     gr_text(gr_sys_font(), x, y, cap_str, 0);
+ }
+ #endif

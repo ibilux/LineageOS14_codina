@@ -1,0 +1,34 @@
+Subject: [PATCH] Expose PhoneInfo
+
+This was accessible through PureTools, but makes more since to place it in About phone/Status for access.
+Most Carrier unlocked devices need this to make proper adjustments to radio settings,
+
+diff --git a/res/values/projekt_strings.xml b/res/values/projekt_strings.xml
+index 86d92bdf11..e781cf5b03 100644
+--- a/res/values/projekt_strings.xml
++++ b/res/values/projekt_strings.xml
+@@ -43,4 +43,7 @@
+    <string name="default_usb_configuration" translatable="false" >default</string>
+    <string name="select_usb_default_confguration_warning">WARNING: Default USB configuration is enabled also when device is locked!\n\nDo you really want to enable this configuration?</string>
+ 
++   <!-- Phone info shortcut -->
++   <string name="device_info_title">Phone info</string>
++
+ </resources>
+diff --git a/res/xml/device_info_status.xml b/res/xml/device_info_status.xml
+index a0b7590509..68affd4153 100644
+--- a/res/xml/device_info_status.xml
++++ b/res/xml/device_info_status.xml
+@@ -41,6 +41,12 @@
+         <intent android:targetPackage="com.android.settings"
+             android:targetClass="com.android.settings.Settings$ImeiInformationActivity" />
+     </PreferenceScreen>
++    <PreferenceScreen android:key="radioinfo"
++        android:title="@string/device_info_title"
++        android:persistent="false">
++        <intent android:targetPackage="com.android.settings"
++            android:targetClass="com.android.settings.RadioInfo" />
++    </PreferenceScreen>
+     <com.android.settings.CopyablePreference android:key="wifi_ip_address"
+         android:enabled="false"
+         android:shouldDisableView="false"

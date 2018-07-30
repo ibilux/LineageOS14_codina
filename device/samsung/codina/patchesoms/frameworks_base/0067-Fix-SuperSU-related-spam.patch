@@ -1,0 +1,16 @@
+Subject: [PATCH] Fix SuperSU related spam
+
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index cb7f945af53..6599591a12e 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -4584,7 +4584,8 @@ public boolean isProtectedBroadcast(String actionName) {
+                 if (actionName.startsWith("android.net.netmon.lingerExpired")
+                         || actionName.startsWith("com.android.server.sip.SipWakeupTimer")
+                         || actionName.startsWith("com.android.internal.telephony.data-reconnect")
+-                        || actionName.startsWith("android.net.netmon.launchCaptivePortalApp")) {
++                        || actionName.startsWith("android.net.netmon.launchCaptivePortalApp")
++                        || actionName.startsWith("eu.chainfire.supersu.NativeAccess")) {
+                     return true;
+                 }
+             }

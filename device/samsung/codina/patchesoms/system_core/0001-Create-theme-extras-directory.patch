@@ -1,0 +1,19 @@
+Subject: [PATCH] Create "theme extras" directory
+
+This creates /data/system/theme in init.rc. Historically, this
+was done in ThemeService in CMTE. However, in a OMS/Subs
+environment, OverlayManagerService is strictly dedicated to
+handling overlays and nothing more.
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index c146ccf33..b76c0cc91 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -457,6 +457,7 @@ on post-fs-data
+     mkdir /data/system 0775 system system
+     mkdir /data/system/heapdump 0700 system system
+     mkdir /data/system/users 0775 system system
++    mkdir /data/system/theme 0755 system system
+ 
+     mkdir /data/system_de 0770 system system
+     mkdir /data/system_ce 0770 system system

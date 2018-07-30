@@ -1,0 +1,161 @@
+Color Engine: Theme Tuner Settings too
+
+diff --git a/packages/SystemUI/res/layout/switch_bar.xml b/packages/SystemUI/res/layout/switch_bar.xml
+index 342b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/res/layout/switch_bar.xml
++++ b/packages/SystemUI/res/layout/switch_bar.xml
+@@ -22,8 +22,7 @@
+     android:paddingStart="16dp"
+     android:paddingEnd="16dp"
+     android:clickable="true"
+-    android:gravity="center"
+-    android:theme="@*android:style/ThemeOverlay.DeviceDefault.Accent">
++    android:gravity="center">
+ 
+     <TextView android:id="@+id/switch_text"
+         android:layout_height="wrap_content"
+@@ -35,7 +34,8 @@
+         android:ellipsize="end"
+         android:textAppearance="@style/TextAppearance.SwitchBar"
+         android:textAlignment="viewStart"
+-        android:text="@string/switch_bar_on" />
++        android:text="@string/switch_bar_on"
++        android:textColor="@color/navbar_tuner_text_color" />
+ 
+     <Switch
+         android:id="@android:id/switch_widget"
+diff --git a/packages/SystemUI/res/values/styles.xml b/packages/SystemUI/res/values/styles.xml
+index 252b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/res/values/styles.xml
++++ b/packages/SystemUI/res/values/styles.xml
+@@ -316,12 +316,12 @@
+         <item name="android:layout_height">48dp</item>
+     </style>
+ 
+-    <style name="TunerSettings" parent="@android:style/Theme.DeviceDefault.Settings">
++    <style name="TunerSettings">
+         <item name="android:windowActionBar">false</item>
+         <item name="preferenceTheme">@style/TunerPreferenceTheme</item>
+     </style>
+ 
+-    <style name="TunerPreferenceTheme" parent="@android:style/Theme.DeviceDefault.Settings">
++    <style name="TunerPreferenceTheme">
+         <item name="dropdownPreferenceStyle">@style/Preference.DropDown.Material</item>
+     </style>
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java b/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
+index 262b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
++++ b/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
+@@ -17,7 +17,13 @@
+ 
+ import android.app.Fragment;
+ import android.app.FragmentTransaction;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
++import android.content.Context;
+ import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import android.provider.Settings.Secure;
+ import android.support.v14.preference.PreferenceFragment;
+ import android.support.v7.preference.Preference;
+ import android.support.v7.preference.PreferenceScreen;
+@@ -32,7 +38,41 @@
+ 
+     private static final String TAG_TUNER = "tuner";
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            TunerActivity.this.runOnUiThread(() -> {
++                TunerActivity.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
++
+     protected void onCreate(Bundle savedInstanceState) {
++        final int themeMode = Secure.getInt(getContentResolver(),
++                Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Secure.getInt(getContentResolver(),
++                Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 2) {
++            getTheme().applyStyle(R.style.settings_pixel_theme, true);
++        }
++
+         super.onCreate(savedInstanceState);
+ 
+         if (getFragmentManager().findFragmentByTag(TAG_TUNER) == null) {
+diff --git a/packages/SystemUI/res/values/cm_styles.xml b/packages/SystemUI/res/values/cm_styles.xml
+index 272b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/res/values/cm_styles.xml
++++ b/packages/SystemUI/res/values/cm_styles.xml
+@@ -57,3 +57,10 @@
+         <item name="android:colorSecondary">@color/pixel_primary_color</item>
+     </style>
++
++    <style name="settings_pixel_theme">
++        <item name="android:colorPrimary">@color/pixel_primary_color</item>
++        <item name="android:colorPrimaryDark">@color/pixel_primary_color</item>
++        <item name="android:colorSecondary">@color/pixel_secondary_color</item>
++    </style>
++
+ </resources>
+diff --git a/packages/SystemUI/res/values/cm_colors.xml b/packages/SystemUI/res/values/cm_colors.xml
+index 282b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/res/values/cm_colors.xml
++++ b/packages/SystemUI/res/values/cm_colors.xml
+@@ -27,3 +27,5 @@
+     <!-- Pixel theme -->
+     <color name="pixel_primary_color">#242424</color>
++    <color name="pixel_secondary_color">#3a3a3a</color>
++
+ </resources>
+diff --git a/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java b/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
+index 292b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
++++ b/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
+@@ -149,5 +149,10 @@ public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
+                     .getPreferenceScreen().findPreference(rootKey));
+             setTargetFragment(null, 0);
+         }
++
++        @Override
++        public void onSaveInstanceState(final Bundle outState) {
++            setTargetFragment(null, -1);
++        }
+     }
+ }
+diff --git a/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java b/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
+index cd6474e..084da07 100644
+--- a/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
++++ b/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
+@@ -96,11 +96,6 @@
+     }
+ 
+     @Override
+-    public void onSaveInstanceState(final Bundle outState) {
+-        // save nothing
+-    }
+-
+-    @Override
+     public void onBackPressed() {
+         if (!getFragmentManager().popBackStackImmediate()) {
+             super.onBackPressed();

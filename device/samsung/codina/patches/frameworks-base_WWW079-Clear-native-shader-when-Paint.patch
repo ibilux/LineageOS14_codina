@@ -1,0 +1,33 @@
+ Clear native shader when Paint shader changes
+
+Since Recents never goes away that means TaskViewThumbnail
+never goes away which in turn means mDrawPaint never goes away.
+
+mDrawPaint has a setShader(null) called on it to release
+the BitmapShader it was previously drawn with, but that
+change didn't push down to native until the next time the
+paint was used. As a result, the Paint held on to a
+reference to the bitmap.
+
+The fix is simple, when the shader is changed simply
+push down an immediate clear of the native shader. Since
+the bitmap of a BitmapShader isn't changeable we don't
+need to worry about clearing references for shader mutation,
+merely when Paint#setShader() happens.
+
+Test: Open & close recents, observe EGL memory immediately returns
+to sub-5MB.
+
+diff --git a/graphics/java/android/graphics/Paint.java b/graphics/java/android/graphics/Paint.java
+index bdf1463..c6deeea 100644
+--- a/graphics/java/android/graphics/Paint.java
++++ b/graphics/java/android/graphics/Paint.java
+@@ -1047,6 +1047,8 @@ public Shader setShader(Shader shader) {
+         // old shader's pointer may be reused by another shader allocation later
+         if (mShader != shader) {
+             mNativeShader = -1;
++            // Release any native references to the old shader content
++            nSetShader(mNativePaint, 0);
+         }
+         // Defer setting the shader natively until getNativeInstance() is called
+         mShader = shader;

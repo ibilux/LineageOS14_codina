@@ -1,0 +1,3 @@
+#!/system/bin/sh -x
+
+echo 1 > /sys/kernel/god_mode/god_mode

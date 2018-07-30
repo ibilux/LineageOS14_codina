@@ -1,0 +1,21 @@
+Subject: [PATCH] Test: Drag on the divider line.
+
+Fix Bug:SystemUI will crash when draging the divider line in qstile edit panel.
+
+Patch solution:The divider line can not be dragged.
+When the divider is selected, step in onSelectedChanged, mTiles.get(position) 
+ will return null object.Then SystemUI will crash
+
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java b/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
+index 8d7f6ee..ce538fd 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
+@@ -549,7 +549,7 @@
+ 
+         @Override
+         public int getMovementFlags(RecyclerView recyclerView, ViewHolder viewHolder) {
+-            if (viewHolder.getItemViewType() == TYPE_EDIT) {
++            if (viewHolder.getItemViewType() == TYPE_EDIT || viewHolder.getItemViewType() == TYPE_DIVIDER) {
+                 return makeMovementFlags(0, 0);
+             }
+             int dragFlags = ItemTouchHelper.UP | ItemTouchHelper.DOWN | ItemTouchHelper.RIGHT

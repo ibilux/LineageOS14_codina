@@ -1,0 +1,18 @@
+Subject: [PATCH] Fixed the strange action label issue on VVM Empty List View
+
+The strange action label is shown on VVM Empty List view.
+Fixed not to show the strage lable.
+
+diff --git a/src/com/android/dialer/calllog/CallLogFragment.java b/src/com/android/dialer/calllog/CallLogFragment.java
+index 67b72a5..0fe4425 100644
+--- a/src/com/android/dialer/calllog/CallLogFragment.java
++++ b/src/com/android/dialer/calllog/CallLogFragment.java
+@@ -500,6 +500,8 @@ private void updateEmptyMessage(int filterType) {
+         } else if (filterType == CallLogQueryHandler.CALL_TYPE_ALL) {
+             mEmptyListView.setImage(R.drawable.empty_call_log);
+             mEmptyListView.setActionLabel(R.string.call_log_all_empty_action);
++        } else {
++            mEmptyListView.setActionLabel(EmptyContentView.NO_LABEL);
+         }
+     }
+ 

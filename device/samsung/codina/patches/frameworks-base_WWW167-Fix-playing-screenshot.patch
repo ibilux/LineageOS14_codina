@@ -1,0 +1,56 @@
+Subject: [PATCH] Fix playing screenshot's sound when camera's sounds off
+
+This fixes a bug created due to the fact that the screenshot sound is the same one as the
+camera sound. This keeps the two apart and now if you switch either or off, it doesn't mess
+with the other one.
+
+diff --git a/packages/SystemUI/src/com/android/systemui/screenshot/GlobalScreenshot.java b/packages/SystemUI/src/com/android/systemui/screenshot/GlobalScreenshot.java
+index c4a06d38135..f480d4b58f6 100644
+--- a/packages/SystemUI/src/com/android/systemui/screenshot/GlobalScreenshot.java
++++ b/packages/SystemUI/src/com/android/systemui/screenshot/GlobalScreenshot.java
+@@ -41,6 +41,8 @@
+ import android.graphics.PointF;
+ import android.graphics.Rect;
+ import android.media.MediaActionSound;
++import android.media.Ringtone;
++import android.media.RingtoneManager;
+ import android.net.Uri;
+ import android.os.AsyncTask;
+ import android.os.Bundle;
+@@ -439,7 +441,7 @@ protected Void doInBackground(Uri... params) {
+ 
+     private AsyncTask<Void, Void, Void> mSaveInBgTask;
+ 
+-    private MediaActionSound mCameraSound;
++    private Ringtone  mScreenshotSound;
+ 
+     private final int mSfHwRotation;
+ 
+@@ -511,12 +513,12 @@ public boolean onTouch(View v, MotionEvent event) {
+         mPreviewWidth = panelWidth;
+         mPreviewHeight = r.getDimensionPixelSize(R.dimen.notification_max_height);
+ 
+-        // Setup the Camera shutter sound
+-        mCameraSound = new MediaActionSound();
+-        mCameraSound.load(MediaActionSound.SHUTTER_CLICK);
+-
+         // Load hardware rotation from prop
+         mSfHwRotation = android.os.SystemProperties.getInt("ro.sf.hwrotation",0) / 90;
++
++        // Setup the Screenshot sound
++        mScreenshotSound= RingtoneManager.getRingtone(mContext,
++                    Uri.parse("file://" + "/system/media/audio/ui/camera_click.ogg"));
+     }
+ 
+     /**
+@@ -721,7 +723,9 @@ public void onAnimationEnd(Animator animation) {
+             @Override
+             public void run() {
+                 // Play the shutter sound to notify that we've taken a screenshot
+-                mCameraSound.play(MediaActionSound.SHUTTER_CLICK);
++                if (mScreenshotSound != null) {
++                     mScreenshotSound.play();
++                }
+ 
+                 mScreenshotView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                 mScreenshotView.buildLayer();

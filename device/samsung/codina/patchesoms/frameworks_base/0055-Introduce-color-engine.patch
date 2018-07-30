@@ -1,0 +1,1666 @@
+Subject: [PATCH 54/54] Introduce color engine.
+
+Color engine is a system which allows changing the primary
+and accent colors of the device theme on-the-fly.
+
+Colors and design by arzbhatia
+
+The following primary colors are supported:
+* White (android default)
+* Grey
+* Pixel
+* Dark
+
+The following accent colors are supported:
+* Blue
+* Red
+* Teal/Default
+* Orange
+* Green
+* Yellow
+* Purple
+* Pink
+* Cyan
+* Grey
+
+diff --git a/Android.mk b/Android.mk
+index a0fbd6930da..506a3020072 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -86,6 +86,8 @@ LOCAL_SRC_FILES += \
+ 	core/java/android/app/job/IJobCallback.aidl \
+ 	core/java/android/app/job/IJobScheduler.aidl \
+ 	core/java/android/app/job/IJobService.aidl \
++	core/java/android/app/IThemeCallback.aidl \
++	core/java/android/app/IThemeService.aidl \
+ 	core/java/android/app/ITransientNotification.aidl \
+ 	core/java/android/app/IUidObserver.aidl \
+ 	core/java/android/app/IUiAutomationConnection.aidl \
+diff --git a/core/java/android/app/IThemeCallback.aidl b/core/java/android/app/IThemeCallback.aidl
+new file mode 100644
+index 00000000000..e7f6de813cf
+--- /dev/null
++++ b/core/java/android/app/IThemeCallback.aidl
+@@ -0,0 +1,26 @@
++/**
++ * Copyright (C) 2016-2017 The ParanoidAndroid Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package android.app;
++
++/** @hide */
++interface IThemeCallback {
++
++    // notify when theme changes
++    void onThemeChanged(int themeMode, int color);
++
++    // called when a callback gets added
++    void onCallbackAdded(int themeMode, int color);
++}
+diff --git a/core/java/android/app/IThemeService.aidl b/core/java/android/app/IThemeService.aidl
+new file mode 100644
+index 00000000000..5ce5d259183
+--- /dev/null
++++ b/core/java/android/app/IThemeService.aidl
+@@ -0,0 +1,25 @@
++/**
++ * Copyright (C) 2016-2017 The ParanoidAndroid Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package android.app;
++
++import android.app.IThemeCallback;
++
++/** @hide */
++interface IThemeService {
++
++    // add callback to get notified when theme state changes
++    void addCallback(IThemeCallback callback);
++}
+diff --git a/core/java/android/app/SystemServiceRegistry.java b/core/java/android/app/SystemServiceRegistry.java
+index 4c9b9778d7b..b0581b669bc 100644
+--- a/core/java/android/app/SystemServiceRegistry.java
++++ b/core/java/android/app/SystemServiceRegistry.java
+@@ -650,6 +650,15 @@ final class SystemServiceRegistry {
+                 return new FingerprintManager(ctx.getOuterContext(), service);
+             }});
+ 
++        registerService(Context.THEME_SERVICE, ThemeManager.class,
++                new CachedServiceFetcher<ThemeManager>() {
++                    @Override
++                    public ThemeManager createService(ContextImpl ctx) {
++                        IBinder binder = ServiceManager.getService(Context.THEME_SERVICE);
++                        IThemeService service = IThemeService.Stub.asInterface(binder);
++                        return new ThemeManager(ctx.getOuterContext(), service);
++                    }});
++
+         registerService(Context.TV_INPUT_SERVICE, TvInputManager.class,
+                 new StaticServiceFetcher<TvInputManager>() {
+             @Override
+diff --git a/core/java/android/app/ThemeManager.java b/core/java/android/app/ThemeManager.java
+new file mode 100644
+index 00000000000..2deb52e1a28
+--- /dev/null
++++ b/core/java/android/app/ThemeManager.java
+@@ -0,0 +1,124 @@
++/**
++ * Copyright (C) 2016-2017 The ParanoidAndroid Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package android.app;
++
++import android.content.Context;
++import android.content.om.IOverlayManager;
++import android.content.om.OverlayInfo;
++import android.os.RemoteException;
++import android.os.ServiceManager;
++import android.util.Log;
++
++import java.util.ArrayList;
++
++/**
++ * A class that handles theme changes
++ * <p>
++ * Use {@link android.content.Context#getSystemService(java.lang.String)}
++ * with argument {@link android.content.Context#THEME_SERVICE} to get
++ * an instance of this class.
++ *
++ * Usage: import and create a final {@link IThemeCallback.Stub()} and implement your logic in
++ * {@link IThemeCalback#onCallbackAdded(int, int)} and {@link IThemeCallback#onThemeChanged(int, int)}.
++ * Then add your callback to the Theme manager.
++ *
++ * // Create a Handler instance to run on the UI thread
++ * private Handler mHandler = new Handler();
++ *
++ * // Create a theme resId.
++ * private int mThemeResId;
++ *
++ * // define a final callback
++ * private final IThemeCallback mCallback = new IThemeCallback.Stub() {
++ *
++ *      @Overrde
++ *      public void onCallbackAdded(int themeMode, int color) {
++ *          // Usually this method calls {@link IThemeCallback#onThemeChanged(int, int)}
++ *          // Unless special handling is needed for when the callback is registered the first time.
++ *          onThemeChanged(themeMode, color);
++ *      }
++ *
++ *      @Override
++ *      public void onThemeChanged(int themeMode, int color) {
++ *          // @param themeMode primary theme setting value.
++ *          // Can be 0 (default theme), 1 (dark theme) or 2 (pixel theme).
++ *          // @param color theme style resId.
++ *          //
++ *          // Your method to handle activity recreating and acquiring the theme style resId.
++ *          // IMPORTANT! This method does not run inside the UI thread.
++ *          // You will have to make sure that all the methods called from here run inside the UI thread.
++ *          mThemeResId = color;
++ *          mHandler.post(new Runnable() { // Post to the UI thread
++ *              @Override
++ *              public void run() {
++ *                  recreateActivity();
++ *              }
++ *          });
++ *      }
++ * }
++ *
++ * private void recreateActivity() {
++ *     getActivity().recreate();
++ * }
++ *
++ * // Add callback to theme manager
++ * // IMPORTANT! Make sure callback is registered and theme is applied BEFORE super.onCreate(Bundle); is called!
++ * @Override
++ * protected void onCreate(Bundle savedState) {
++ *     ThemeManager manager = (ThemeManager) context.getSystemService(Context.THEME_SERVICE);
++ *     manager.addCallback(mCallback);
++ *     setTheme(Your default theme resId);
++ *     getTheme().applyStyle(mThemeResId, true // Override the attributes);
++ *     super.onCreate(savedState);
++ *     // Rest of your onCreate method
++ * }
++ *
++ * @author Anas Karbila
++ * @hide
++ */
++public class ThemeManager {
++
++    private static final String TAG = "ThemeManager";
++
++    private Context mContext;
++    private IThemeService mService;
++
++    public ThemeManager(Context context, IThemeService service) {
++        mContext = context;
++        mService = service;
++    }
++
++    public static boolean isOverlayEnabled() {
++        final IOverlayManager om = IOverlayManager.Stub.asInterface(ServiceManager
++                .getService("overlay"));
++        try {
++            return !om.getAllOverlays(0).isEmpty();
++        } catch (RemoteException e) {
++            e.printStackTrace();
++        }
++        return false;
++    }
++
++    public void addCallback(IThemeCallback callback) {
++        if (mService != null) {
++            try {
++                mService.addCallback(callback);
++            } catch (RemoteException ex) {
++                Log.e(TAG, "Failed to dispatch callback");
++            }
++        }
++    }
++}
+diff --git a/core/java/android/content/Context.java b/core/java/android/content/Context.java
+index dea1d5a60df..d83746c8f05 100644
+--- a/core/java/android/content/Context.java
++++ b/core/java/android/content/Context.java
+@@ -3672,6 +3672,16 @@ public abstract class Context {
+     public static final String OVERLAY_SERVICE = "overlay";
+ 
+     /**
++     * Use with {@link #getSystemService} to retrieve a
++     * {@link android.app.ThemeManager} for accessing and setting theme state.
++     *
++     * @hide
++     * @see #getSystemService
++     * @see android.app.ThemeManager
++     */
++    public static final String THEME_SERVICE = "theme";
++
++    /**
+      * Determine whether the given permission is allowed for a particular
+      * process and user ID running in the system.
+      *
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index 4c778fbdee8..f8e53cab68e 100644
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -6639,6 +6639,27 @@ public final class Settings {
+                 "managed_profile_contact_remote_search";
+ 
+         /**
++         * Whether dark theme is enabled or not
++         *
++         * @hide
++         */
++        public static final String THEME_PRIMARY_COLOR = "theme_primary_color";
++
++        /**
++         * Whether accent colors for themes are enabled or not
++         *
++         * @hide
++         */
++        public static final String THEME_ACCENT_COLOR = "theme_accent_color";
++
++        /**
++         * Whether accent colors or dark mode is supposed to show first
++         *
++         * @hide
++         */
++        public static final String THEME_SETTINGS_MODE = "theme_settings_mode";
++
++        /**
+          * Whether or not the automatic storage manager is enabled and should run on the device.
+          *
+          * @hide
+diff --git a/core/res/res/values/cm_colors.xml b/core/res/res/values/cm_colors.xml
+new file mode 100644
+index 00000000000..00718b9785f
+--- /dev/null
++++ b/core/res/res/values/cm_colors.xml
+@@ -0,0 +1,31 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++** Copyright (C) 2014-2017, ParanoidAndroid Project
++** Copyright (C) 2017 The LineageOS Project
++**
++** Licensed under the Apache License, Version 2.0 (the "License");
++** you may not use this file except in compliance with the License.
++** You may obtain a copy of the License at
++**
++**     http://www.apache.org/licenses/LICENSE-2.0
++**
++** Unless required by applicable law or agreed to in writing, software
++** distributed under the License is distributed on an "AS IS" BASIS,
++** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++** See the License for the specific language governing permissions and
++** limitations under the License.
++*/
++-->
++<resources>
++    <color name="dark_primary_color">@color/black</color>
++    <color name="grey_primary_color">#ff303030</color>
++    <color name="blue_accent_color">#4285F4</color>
++    <color name="red_accent_color">#f90028</color>
++    <color name="orange_accent_color">#ffab00</color>
++    <color name="green_accent_color">#76c124</color>
++    <color name="yellow_accent_color">#ffc90f</color>
++    <color name="purple_accent_color">#6f24d6</color>
++    <color name="pink_accent_color">#ff1b70</color>
++    <color name="cyan_accent_color">#24b7d6</color>
++    <color name="grey_accent_color">#ff5d5d5d</color>
++</resources>
+diff --git a/core/res/res/values/cm_symbols.xml b/core/res/res/values/cm_symbols.xml
+index 303901b3b93..768d49da683 100644
+--- a/core/res/res/values/cm_symbols.xml
++++ b/core/res/res/values/cm_symbols.xml
+@@ -2,7 +2,8 @@
+ <!--
+      Copyright (C) 2012-2015 The CyanogenMod Project
+      Copyright (c) 2013, The Linux Foundation. All rights reserved.
+-                   2017  The LineageOS Project
++     Copyright (C) 2014-2017 Paranoid Android
++     Copyright (C) 2017 The LineageOS Project
+ 
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+@@ -112,4 +113,40 @@
+ 
+     <!-- global actions (zen mode buttons) -->
+     <java-symbol type="id" name="option4" />
++
++    <!-- Dark mode -->
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Red" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Blue" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Orange" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Green" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Yellow" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Purple" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Pink" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Cyan" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Dark_Grey" />
++
++    <!-- Grey mode -->
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Red" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Blue" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Orange" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Green" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Yellow" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Purple" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Pink" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Cyan" />
++    <java-symbol type="style" name="Theme_DeviceDefault_Grey_Grey" />
++
++    <!-- White mode -->
++    <java-symbol type="style" name="Theme_DeviceDefault_White" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Red" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Blue" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Orange" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Green" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Yellow" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Purple" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Pink" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Cyan" />
++    <java-symbol type="style" name="Theme_DeviceDefault_White_Grey" />
+ </resources>
+diff --git a/core/res/res/values/cm_themes.xml b/core/res/res/values/cm_themes.xml
+new file mode 100644
+index 00000000000..c9080cd4b68
+--- /dev/null
++++ b/core/res/res/values/cm_themes.xml
+@@ -0,0 +1,351 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Copyright (C) 2016-2017 Paranoid Android
++     Copyright (C) 2017 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources>
++    <!-- begin Dark mode -->
++    <style name="Theme.DeviceDefault.Dark">
++        <item name="alertDialogTheme">@style/Theme_Dark_Alert_Dialog</item>
++
++        <!-- Color palette -->
++        <item name="colorAccent">@color/accent_device_default_light</item>
++        <item name="colorBackground">@color/dark_primary_color</item>
++        <item name="colorControlHighlight">@color/white</item>
++        <item name="colorControlNormal">@color/white</item>
++        <item name="colorPrimary">@color/dark_primary_color</item>
++        <item name="colorPrimaryDark">@color/dark_primary_color</item>
++        <item name="colorSecondary">@color/dark_primary_color</item>
++        <item name="textColorPrimary">@color/white</item>
++    </style>
++
++    <!-- Need to use parent of original theme, otherwise attributes will be lost -->
++    <style name="Theme_DeviceDefault_Dark" parent="Theme.DeviceDefault.Dark" />
++
++    <style name="Theme_Dark_Alert_Dialog" parent="Theme.DeviceDefault.Dialog.Alert">
++        <item name="colorAccent">@color/accent_device_default_light</item>
++        <item name="colorBackground">@color/dark_primary_color</item>
++        <item name="colorPrimary">@color/dark_primary_color</item>
++    </style>
++    <!-- End dark mode -->
++
++    <!-- begin Grey mode -->
++    <style name="Theme.DeviceDefault.Grey">
++        <item name="alertDialogTheme">@style/Theme_Grey_Alert_Dialog</item>
++
++        <!-- Color palette -->
++        <item name="colorAccent">@color/accent_device_default_light</item>
++        <item name="colorBackground">@color/grey_primary_color</item>
++        <item name="colorControlHighlight">@color/white</item>
++        <item name="colorControlNormal">@color/white</item>
++        <item name="colorPrimary">@color/grey_primary_color</item>
++        <item name="colorPrimaryDark">@color/grey_primary_color</item>
++        <item name="colorSecondary">@color/grey_primary_color</item>
++        <item name="textColorPrimary">@color/white</item>
++    </style>
++
++    <!-- Need to use parent of original theme, otherwise attributes will be lost -->
++    <style name="Theme_DeviceDefault_Grey" parent="Theme.DeviceDefault.Grey" />
++
++    <style name="Theme_Grey_Alert_Dialog" parent="Theme.DeviceDefault.Dialog.Alert">
++        <item name="colorAccent">@color/accent_device_default_light</item>
++        <item name="colorBackground">@color/grey_primary_color</item>
++        <item name="colorPrimary">@color/grey_primary_color</item>
++    </style>
++    <!-- End grey mode -->
++
++    <!-- Begin white mode -->
++    <style name="Theme_DeviceDefault_White">
++        <item name="alertDialogTheme">@style/Theme_White_Alert_Dialog</item>
++
++        <!-- Color palette -->
++        <item name="colorAccent">@color/accent_device_default_light</item>
++        <item name="colorBackground">@color/background_material_light</item>
++        <item name="colorControlHighlight">@color/ripple_material_light</item>
++        <item name="colorControlNormal">@color/secondary_text_material_light</item>
++        <item name="colorPrimary">@color/primary_device_default_settings</item>
++        <item name="colorPrimaryDark">@color/primary_dark_device_default_settings</item>
++        <item name="colorSecondary">@color/secondary_device_default_settings</item>
++        <item name="textColorPrimary">@color/primary_text_material_light</item>
++    </style>
++
++    <style name="Theme_White_Alert_Dialog" parent="Theme.DeviceDefault.Light.Dialog.Alert">
++        <item name="colorAccent">@color/accent_device_default_light</item>
++        <item name="colorBackground">@color/background_material_light</item>
++        <item name="colorPrimary">@color/primary_device_default_settings</item>
++    </style>
++    <!-- End white mode -->
++
++    <!-- Red accent color -->
++    <style name="Theme_DeviceDefault_Dark_Red" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/red_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Red_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Red" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/red_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Red_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Red" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/red_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Red_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Red_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/red_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Red_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/red_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Red_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/red_accent_color</item>
++    </style>
++    <!-- End red accent color -->
++
++    <!-- Blue accent color -->
++    <style name="Theme_DeviceDefault_Dark_Blue" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/blue_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Blue_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Blue" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/blue_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Blue_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Blue" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/blue_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Blue_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Blue_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/blue_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Blue_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/blue_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Blue_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/blue_accent_color</item>
++    </style>
++    <!-- End blue accent color -->
++
++    <!-- Orange accent color -->
++    <style name="Theme_DeviceDefault_Dark_Orange" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/orange_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Orange_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Orange" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/orange_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Orange_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Orange" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/orange_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Orange_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Orange_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/orange_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Orange_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/orange_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Orange_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/orange_accent_color</item>
++    </style>
++    <!-- End orange accent color -->
++
++    <!-- Green accent color -->
++    <style name="Theme_DeviceDefault_Dark_Green" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/green_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Green_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Green" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/green_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Green_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Green" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/green_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Green_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Green_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/green_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Green_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/green_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Green_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/green_accent_color</item>
++    </style>
++    <!-- End green accent color -->
++
++    <!-- Yellow accent color -->
++    <style name="Theme_DeviceDefault_Dark_Yellow" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/yellow_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Yellow_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Yellow" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/yellow_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Yellow_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Yellow" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/yellow_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Yellow_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Yellow_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/yellow_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Yellow_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/yellow_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Yellow_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/yellow_accent_color</item>
++    </style>
++    <!-- End yellow accent color -->
++
++    <!-- Purple accent color -->
++    <style name="Theme_DeviceDefault_Dark_Purple" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/purple_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Purple_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Purple" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/purple_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Purple_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Purple" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/purple_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Purple_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Purple_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/purple_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Purple_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/purple_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Purple_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/purple_accent_color</item>
++    </style>
++    <!-- End purple accent color -->
++
++    <!-- Pink accent color -->
++    <style name="Theme_DeviceDefault_Dark_Pink" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/pink_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Pink_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Pink" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/pink_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Pink_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Pink" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/pink_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Pink_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Pink_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/pink_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Pink_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/pink_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Pink_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/pink_accent_color</item>
++    </style>
++    <!-- End Pink accent color -->
++
++    <!-- Cyan accent color -->
++    <style name="Theme_DeviceDefault_Dark_Cyan" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/cyan_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Cyan_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Cyan" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/cyan_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Cyan_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Cyan" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/cyan_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Cyan_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Cyan_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/cyan_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Cyan_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/cyan_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Cyan_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/cyan_accent_color</item>
++    </style>
++    <!-- End cyan accent color -->
++
++    <!-- Grey accent color -->
++    <style name="Theme_DeviceDefault_Dark_Grey" parent="Theme_DeviceDefault_Dark">
++        <item name="colorAccent">@color/grey_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Dark_Grey_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_Grey_Grey" parent="Theme_DeviceDefault_Grey">
++        <item name="colorAccent">@color/grey_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_Grey_Grey_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_DeviceDefault_White_Grey" parent="Theme_DeviceDefault_White">
++        <item name="colorAccent">@color/grey_accent_color</item>
++        <item name="alertDialogTheme">@style/Theme_White_Grey_Alert_Dialog</item>
++    </style>
++
++    <style name="Theme_Dark_Grey_Alert_Dialog" parent="Theme_Dark_Alert_Dialog">
++        <item name="colorAccent">@color/grey_accent_color</item>
++    </style>
++
++    <style name="Theme_Grey_Grey_Alert_Dialog" parent="Theme_Grey_Alert_Dialog">
++        <item name="colorAccent">@color/grey_accent_color</item>
++    </style>
++
++    <style name="Theme_White_Grey_Alert_Dialog" parent="Theme_White_Alert_Dialog">
++        <item name="colorAccent">@color/grey_accent_color</item>
++    </style>
++    <!-- End grey accent color -->
++
++</resources>
+diff --git a/core/res/res/values/themes_device_defaults.xml b/core/res/res/values/themes_device_defaults.xml
+index b19858ef194..e8e5d64703f 100644
+--- a/core/res/res/values/themes_device_defaults.xml
++++ b/core/res/res/values/themes_device_defaults.xml
+@@ -820,5 +820,4 @@ easier.
+     <style name="ThemeOverlay.DeviceDefault.Dark.ActionBar.Accent" parent="ThemeOverlay.Material.Dark.ActionBar">
+         <item name="colorAccent">@color/accent_device_default_dark</item>
+     </style>
+-
+ </resources>
+diff --git a/packages/SystemUI/res/layout/zen_mode_panel.xml b/packages/SystemUI/res/layout/zen_mode_panel.xml
+index c0be6762e4e..61b7a92ca66 100644
+--- a/packages/SystemUI/res/layout/zen_mode_panel.xml
++++ b/packages/SystemUI/res/layout/zen_mode_panel.xml
+@@ -40,8 +40,7 @@
+         android:layout_marginEnd="16dp"
+         android:paddingTop="8dp"
+         android:paddingBottom="8dp"
+-        android:background="@drawable/zen_introduction_message_background"
+-        android:theme="@*android:style/ThemeOverlay.DeviceDefault.Accent.Light">
++        android:background="@drawable/zen_introduction_message_background">
+ 
+         <ImageView
+             android:id="@+id/zen_introduction_confirm"
+diff --git a/packages/SystemUI/res/values/cm_colors.xml b/packages/SystemUI/res/values/cm_colors.xml
+index 6f975f28cca..d08e47a461c 100644
+--- a/packages/SystemUI/res/values/cm_colors.xml
++++ b/packages/SystemUI/res/values/cm_colors.xml
+@@ -1,6 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!--
+      Copyright (C) 2016 The CyanogenMod Project
++     Copyright (C) 2016-2017 Paranoid Android
++     Copyright (C) 2017 The LineageOS Project
+ 
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+@@ -22,4 +24,6 @@
+     <color name="status_bar_temperature_text_color">#FFFFFFFF</color>
+     <color name="status_bar_temperature_location_text_color">#FFFFFFFF</color>
+ 
++    <!-- Pixel theme -->
++    <color name="pixel_primary_color">#242424</color>
+ </resources>
+diff --git a/packages/SystemUI/res/values/cm_styles.xml b/packages/SystemUI/res/values/cm_styles.xml
+index b582a7c0e1c..dd7941f5cc9 100644
+--- a/packages/SystemUI/res/values/cm_styles.xml
++++ b/packages/SystemUI/res/values/cm_styles.xml
+@@ -45,4 +45,15 @@
+         <item name="blendMode">overlay</item>
+     </style>
+ 
++    <!-- Color engine -->
++    <style name="systemui_light_theme">
++        <item name="android:colorControlNormal">?android:attr/textColorSecondary</item>
++        <item name="android:textColorPrimary">@*android:color/primary_text_material_dark</item>
++    </style>
++
++    <style name="systemui_pixel_theme">
++        <item name="android:colorPrimary">@color/pixel_primary_color</item>
++        <item name="android:colorPrimaryDark">@color/pixel_primary_color</item>
++        <item name="android:colorSecondary">@color/pixel_primary_color</item>
++    </style>
+ </resources>
+diff --git a/packages/SystemUI/src/com/android/systemui/AutoReinflateContainer.java b/packages/SystemUI/src/com/android/systemui/AutoReinflateContainer.java
+index 2aca7889f31..d125ce2e179 100644
+--- a/packages/SystemUI/src/com/android/systemui/AutoReinflateContainer.java
++++ b/packages/SystemUI/src/com/android/systemui/AutoReinflateContainer.java
+@@ -15,9 +15,12 @@
+ package com.android.systemui;
+ 
+ import android.annotation.Nullable;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
+ import android.content.Context;
+ import android.content.res.Configuration;
+ import android.content.res.TypedArray;
++import android.os.Handler;
+ import android.os.LocaleList;
+ import android.util.AttributeSet;
+ import android.view.LayoutInflater;
+@@ -38,12 +41,20 @@ public class AutoReinflateContainer extends FrameLayout {
+     private int mDensity;
+     private LocaleList mLocaleList;
+ 
++    private Handler mHandler = new Handler();
++    private ThemeManager mThemeManager;
++
+     public AutoReinflateContainer(Context context, @Nullable AttributeSet attrs) {
+         super(context, attrs);
+ 
+         mDensity = context.getResources().getConfiguration().densityDpi;
+         mLocaleList = context.getResources().getConfiguration().getLocales();
+ 
++        mThemeManager = (ThemeManager) context.getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++
+         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.AutoReinflateContainer);
+         if (!a.hasValue(R.styleable.AutoReinflateContainer_android_layout)) {
+             throw new IllegalArgumentException("AutoReinflateContainer must contain a layout");
+@@ -52,6 +63,21 @@ public class AutoReinflateContainer extends FrameLayout {
+         inflateLayout();
+     }
+ 
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            mHandler.post(() -> {
++                inflateLayout();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            // no-op
++        }
++    };
++
+     @Override
+     protected void onConfigurationChanged(Configuration newConfig) {
+         super.onConfigurationChanged(newConfig);
+diff --git a/packages/SystemUI/src/com/android/systemui/SystemUIApplication.java b/packages/SystemUI/src/com/android/systemui/SystemUIApplication.java
+index 4b9ae2a37c6..71a75548505 100644
+--- a/packages/SystemUI/src/com/android/systemui/SystemUIApplication.java
++++ b/packages/SystemUI/src/com/android/systemui/SystemUIApplication.java
+@@ -18,6 +18,8 @@ package com.android.systemui;
+ 
+ import android.app.ActivityThread;
+ import android.app.Application;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
+ import android.content.BroadcastReceiver;
+ import android.content.Context;
+ import android.content.Intent;
+@@ -27,6 +29,7 @@ import android.content.res.Configuration;
+ import android.os.Process;
+ import android.os.SystemProperties;
+ import android.os.UserHandle;
++import android.provider.Settings;
+ import android.util.Log;
+ 
+ import com.android.systemui.stackdivider.Divider;
+@@ -42,6 +45,8 @@ public class SystemUIApplication extends Application {
+     private static final String TAG = "SystemUIService";
+     private static final boolean DEBUG = false;
+ 
++    private ThemeManager mThemeManager;
++
+     /**
+      * The classes of the stuff to start.
+      */
+@@ -121,6 +126,11 @@ public class SystemUIApplication extends Application {
+             // start those components now for the current non-system user.
+             startServicesIfNeeded(SERVICES_PER_USER);
+         }
++
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
+     }
+ 
+     /**
+@@ -206,4 +216,27 @@ public class SystemUIApplication extends Application {
+     public SystemUI[] getServices() {
+         return mServices;
+     }
++
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            final boolean defaultTheme = Settings.Secure.getInt(getContentResolver(),
++                    Settings.Secure.THEME_ACCENT_COLOR, 0) == 0;
++            if (themeMode == 0 && defaultTheme) {
++                getTheme().applyStyle(R.style.systemui_theme, true);
++            } else {
++                getTheme().applyStyle(color, true);
++                getTheme().applyStyle(R.style.systemui_light_theme, true);
++            }
++            if (themeMode == 2) {
++                getTheme().applyStyle(R.style.systemui_pixel_theme, true);
++            }
++        }
++    };
+ }
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/QSDetail.java b/packages/SystemUI/src/com/android/systemui/qs/QSDetail.java
+index 662b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/QSDetail.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/QSDetail.java
+@@ -33,6 +33,7 @@ import android.widget.Switch;
+ import android.widget.TextView;
+ 
+ import com.android.internal.logging.MetricsLogger;
++import com.android.settingslib.Utils;
+ import com.android.systemui.FontSizeUtils;
+ import com.android.systemui.R;
+ import com.android.systemui.qs.QSTile.DetailAdapter;
+@@ -96,6 +97,7 @@ public class QSDetail extends LinearLayout {
+         mQsDetailHeaderTitle = (TextView) mQsDetailHeader.findViewById(android.R.id.title);
+         mQsDetailHeaderSwitch = (Switch) mQsDetailHeader.findViewById(android.R.id.toggle);
+         mQsDetailHeaderProgress = (ImageView) findViewById(R.id.qs_detail_header_progress);
++        mQsDetailHeaderProgress.setBackgroundColor(Utils.getColorAccent(mContext));
+ 
+         updateDetailText();
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java b/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
+index 77da6d4c7b2..04f57109e5a 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/customize/QSCustomizer.java
+@@ -18,8 +18,10 @@ package com.android.systemui.qs.customize;
+ import android.animation.Animator;
+ import android.animation.Animator.AnimatorListener;
+ import android.animation.AnimatorListenerAdapter;
++import android.app.ThemeManager;
+ import android.content.Context;
+ import android.content.res.Configuration;
++import android.content.res.TypedArray;
+ import android.support.v7.widget.DefaultItemAnimator;
+ import android.support.v7.widget.GridLayoutManager;
+ import android.support.v7.widget.RecyclerView;
+@@ -35,6 +37,7 @@ import android.widget.Toolbar;
+ import android.widget.Toolbar.OnMenuItemClickListener;
+ import com.android.internal.logging.MetricsLogger;
+ import com.android.internal.logging.MetricsProto;
++import com.android.settingslib.Utils;
+ import com.android.systemui.R;
+ import com.android.systemui.qs.QSContainer;
+ import com.android.systemui.qs.QSDetailClipper;
+@@ -71,7 +74,7 @@ public class QSCustomizer extends LinearLayout implements OnMenuItemClickListene
+     private QSContainer mQsContainer;
+ 
+     public QSCustomizer(Context context, AttributeSet attrs) {
+-        super(new ContextThemeWrapper(context, R.style.edit_theme), attrs);
++        super(new ContextThemeWrapper(context, Utils.getColorAccent(context)), attrs);
+         mClipper = new QSDetailClipper(this);
+ 
+         LayoutInflater.from(getContext()).inflate(R.layout.qs_customize_panel_content, this);
+@@ -91,7 +94,12 @@ public class QSCustomizer extends LinearLayout implements OnMenuItemClickListene
+         mToolbar.getMenu().add(Menu.NONE, MENU_RESET, 0,
+                 mContext.getString(com.android.internal.R.string.reset));
+         mToolbar.setTitle(R.string.qs_edit);
+-
++        if (!ThemeManager.isOverlayEnabled()) {
++            final TypedArray ta = context.obtainStyledAttributes(new int[]{
++                    android.R.attr.textColorPrimary});
++            mToolbar.setTitleTextColor(ta.getColor(0, 0));
++            ta.recycle();
++        }
+         mRecyclerView = (RecyclerView) findViewById(android.R.id.list);
+         mTileAdapter = new TileAdapter(getContext());
+         mRecyclerView.setAdapter(mTileAdapter);
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java b/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
+index f825a91eaeb..9a3fbf40a94 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/customize/TileAdapter.java
+@@ -16,6 +16,7 @@ package com.android.systemui.qs.customize;
+ 
+ import android.app.AlertDialog;
+ import android.app.AlertDialog.Builder;
++import android.app.ThemeManager;
+ import android.content.ComponentName;
+ import android.content.Context;
+ import android.content.DialogInterface;
+@@ -476,9 +477,11 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
+     private class TileItemDecoration extends ItemDecoration {
+         private final ColorDrawable mDrawable;
+ 
++        private int mAdapterBackground;
+         private TileItemDecoration(Context context) {
+             TypedArray ta =
+                     context.obtainStyledAttributes(new int[]{R.attr.adapterBackground});
++            mAdapterBackground = ta.getColor(0, 0);
+             mDrawable = new ColorDrawable();
+             ta.recycle();
+         }
+@@ -502,8 +505,9 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
+                 final int top = child.getTop() + params.topMargin +
+                         Math.round(ViewCompat.getTranslationY(child));
+                 // Set drawable color
+-                mDrawable.setColor(mContext.getResources().getColor(
+-                        R.color.qs_edit_item_decoration_bg));
++                mDrawable.setColor(ThemeManager.isOverlayEnabled() ?
++                        mContext.getResources().getColor(R.color.qs_edit_item_decoration_bg)
++                        : mAdapterBackground);
+                 // Draw full width, in case there aren't tiles all the way across.
+                 mDrawable.setBounds(0, top, width, bottom);
+                 mDrawable.draw(c);
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/BatteryTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/BatteryTile.java
+index 5119213c4a0..d2bf932de45 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tiles/BatteryTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/BatteryTile.java
+@@ -15,10 +15,12 @@
+  */
+ package com.android.systemui.qs.tiles;
+ 
++import android.app.ThemeManager;
+ import android.content.BroadcastReceiver;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.IntentFilter;
++import android.content.res.TypedArray;
+ import android.graphics.drawable.Drawable;
+ import android.os.Handler;
+ import android.os.Looper;
+@@ -260,9 +262,20 @@ public class BatteryTile extends QSTile<QSTile.State> implements BatteryControll
+                 }
+                 builder.append(info.remainingLabel);
+             }
+-            ((TextView) mCurrentView.findViewById(R.id.charge_and_estimation)).setText(builder);
++            final TextView mEstimatedCharge = (TextView) mCurrentView.findViewById(
++                    R.id.charge_and_estimation);
++            final UsageView mBatteryUsage = (UsageView) mCurrentView.findViewById(
++                    R.id.battery_usage);
++            if (!ThemeManager.isOverlayEnabled()) {
++                final TypedArray ta = mContext.obtainStyledAttributes(new int[]{
++                        android.R.attr.colorAccent});
++                mEstimatedCharge.setTextColor(ta.getColor(0, 0));
++                mBatteryUsage.setAccentColor(ta.getColor(0, 0));
++                ta.recycle();
++            }
++            mEstimatedCharge.setText(builder);
+ 
+-            info.bindHistory((UsageView) mCurrentView.findViewById(R.id.battery_usage));
++            info.bindHistory(mBatteryUsage);
+         }
+ 
+         @Override
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
+index 8ec91b3410a..1ef19c70fe3 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
+@@ -1142,12 +1142,14 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
+                     QSContainer qsContainer = (QSContainer) v.findViewById(
+                             R.id.quick_settings_container);
+                     qsContainer.setHost(qsh);
++                    mBrightnessMirrorController.onDensityOrFontScaleChanged();
+                     mQSPanel = qsContainer.getQsPanel();
+                     mQSPanel.setBrightnessMirror(mBrightnessMirrorController);
+                     mKeyguardStatusBar.setQSPanel(mQSPanel);
+                     mHeader = qsContainer.getHeader();
+                     initSignalCluster(mHeader);
+                     mHeader.setActivityStarter(PhoneStatusBar.this);
++                    mVolumeComponent.updateDialog();
+                 }
+             });
+         }
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/VolumeComponent.java b/packages/SystemUI/src/com/android/systemui/volume/VolumeComponent.java
+index 1f0ee570d12..94663d2004e 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/VolumeComponent.java
++++ b/packages/SystemUI/src/com/android/systemui/volume/VolumeComponent.java
+@@ -30,4 +30,5 @@ public interface VolumeComponent extends DemoMode {
+     void onConfigurationChanged(Configuration newConfig);
+     void dump(FileDescriptor fd, PrintWriter pw, String[] args);
+     void register();
++    void updateDialog();
+ }
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialog.java b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialog.java
+index 10be65f9dfa..9dd28e0ff18 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialog.java
++++ b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialog.java
+@@ -27,6 +27,7 @@ import android.content.pm.PackageManager;
+ import android.content.res.ColorStateList;
+ import android.content.res.Configuration;
+ import android.content.res.Resources;
++import android.content.res.TypedArray;
+ import android.graphics.Color;
+ import android.graphics.PixelFormat;
+ import android.graphics.PorterDuff;
+@@ -120,8 +121,8 @@ public class VolumeDialog implements TunerService.Tunable {
+     private ZenFooter mZenFooter;
+     private final Object mSafetyWarningLock = new Object();
+     private final Accessibility mAccessibility = new Accessibility();
+-    private final ColorStateList mActiveSliderTint;
+-    private final ColorStateList mInactiveSliderTint;
++    private ColorStateList mActiveSliderTint;
++    private ColorStateList mInactiveSliderTint;
+     private VolumeDialogMotion mMotion;
+     private final int mWindowType;
+     private final ZenModeController mZenModeController;
+@@ -158,7 +159,7 @@ public class VolumeDialog implements TunerService.Tunable {
+         mAccessibilityMgr =
+                 (AccessibilityManager) mContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
+         mActiveSliderTint = ColorStateList.valueOf(Utils.getColorAccent(mContext));
+-        mInactiveSliderTint = loadColorStateList(R.color.volume_slider_inactive);
++        mInactiveSliderTint = ColorStateList.valueOf(Utils.getColorAccent(mContext));
+ 
+         initDialog();
+ 
+@@ -264,6 +265,22 @@ public class VolumeDialog implements TunerService.Tunable {
+         mZenPanel = (TunerZenModePanel) mDialog.findViewById(R.id.tuner_zen_mode_panel);
+         mZenPanel.init(mZenModeController);
+         mZenPanel.setCallback(mZenPanelCallback);
++
++        updateDialog();
++    }
++
++    protected void updateDialog() {
++        final TypedArray ta = mContext.obtainStyledAttributes(new int[] {
++                android.R.attr.colorPrimary,
++                android.R.attr.colorAccent
++        });
++        TextView endText = (TextView) mDialog.findViewById(R.id.volume_zen_end_now);
++        mDialog.dismiss();
++        mDialogView.setBackgroundColor(ta.getColor(0, 0));
++        mActiveSliderTint = ColorStateList.valueOf(Utils.getColorAccent(mContext));
++        mInactiveSliderTint = ColorStateList.valueOf(Utils.getColorAccent(mContext));
++        endText.setTextColor(ta.getColor(1, 0));
++        ta.recycle();
+     }
+ 
+     @Override
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogComponent.java b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogComponent.java
+index 44a435e61ac..26832ff2a55 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogComponent.java
++++ b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogComponent.java
+@@ -160,6 +160,11 @@ public class VolumeDialogComponent implements VolumeComponent, TunerService.Tuna
+         mDialog.dump(pw);
+     }
+ 
++    @Override
++    public void updateDialog() {
++        mDialog.updateDialog();
++    }
++
+     private void startSettings(Intent intent) {
+         mSysui.getComponent(PhoneStatusBar.class).startActivityDismissingKeyguard(intent,
+                 true /* onlyProvisioned */, true /* dismissShade */);
+diff --git a/services/core/java/com/android/server/ThemeService.java b/services/core/java/com/android/server/ThemeService.java
+new file mode 100644
+index 00000000000..12d95f6ec68
+--- /dev/null
++++ b/services/core/java/com/android/server/ThemeService.java
+@@ -0,0 +1,223 @@
++/**
++ * Copyright (C) 2016-2017 The ParanoidAndroid Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.server;
++
++import android.app.IThemeCallback;
++import android.app.IThemeService;
++import android.content.Context;
++import android.database.ContentObserver;
++import android.os.DeadObjectException;
++import android.os.Handler;
++import android.os.IBinder;
++import android.os.RemoteException;
++import android.provider.Settings;
++import android.util.Log;
++
++import com.android.internal.R;
++
++import java.util.ArrayList;
++import java.util.List;
++
++/**
++ * A service to select and use custom themes.
++ * The service is responsible for enabling and disabling the custom theme.
++ *
++ * @author Anas Karbila
++ * @hide
++ */
++public class ThemeService extends IThemeService.Stub implements IBinder.DeathRecipient {
++
++    private static final String TAG = ThemeService.class.getSimpleName();
++
++    private final List<IThemeCallback> mCallbacks = new ArrayList<>();
++
++    private ThemeObserver mObserver;
++    private Context mContext;
++
++    public ThemeService(Context context) {
++        mContext = context;
++        mObserver = new ThemeObserver();
++        mObserver.register();
++    }
++
++    @Override
++    public void binderDied() {
++        for (int i = mCallbacks.size() - 1; i >= 0; i--) {
++            final IThemeCallback callback = mCallbacks.get(i);
++            try {
++                returnToDefaultTheme(mContext);
++                if (callback != null) {
++                    callback.onThemeChanged(getThemeMode(), getTheme(getAccentColor()));
++                }
++            } catch (DeadObjectException e) {
++                Log.w(TAG, "Death object while calling onThemeChanged: ", e);
++            } catch (RemoteException e) {
++                Log.w(TAG, "Failed to call onThemeChanged: ", e);
++            } catch (NullPointerException e) {
++                Log.w(TAG, "NullPointer while calling onThemeChanged: ", e);
++            }
++        }
++        mCallbacks.clear();
++        mObserver.unregister();
++    }
++
++    @Override
++    public void addCallback(IThemeCallback callback) {
++        synchronized (mCallbacks) {
++            if (!mCallbacks.contains(callback)) {
++                mCallbacks.add(callback);
++            }
++            dispatchCallbackAdded();
++        }
++    }
++
++    private int getTheme(int color) {
++        final boolean isDarkMode = getThemeMode() == 3;
++        final boolean isGreymode = getThemeMode() == 1;
++        switch (color) {
++            case 1:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Green
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Green
++                        : R.style.Theme_DeviceDefault_White_Green;
++            case 2:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Cyan
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Cyan
++                        : R.style.Theme_DeviceDefault_White_Cyan;
++            case 3:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Blue
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Blue
++                        : R.style.Theme_DeviceDefault_White_Blue;
++            case 4:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Yellow
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Yellow
++                        : R.style.Theme_DeviceDefault_White_Yellow;
++            case 5:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Orange
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Orange
++                        : R.style.Theme_DeviceDefault_White_Orange;
++            case 6:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Red
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Red
++                        : R.style.Theme_DeviceDefault_White_Red;
++            case 7:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Pink
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Pink
++                        : R.style.Theme_DeviceDefault_White_Pink;
++            case 8:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Purple
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Purple
++                        : R.style.Theme_DeviceDefault_White_Purple;
++            case 9:
++                return isDarkMode ? R.style.Theme_DeviceDefault_Dark_Grey
++                        : isGreymode ? R.style.Theme_DeviceDefault_Grey_Grey
++                        : R.style.Theme_DeviceDefault_White_Grey;
++            case 0:
++            default:
++                return getPrimaryTheme(getThemeMode());
++        }
++    }
++
++    private int getPrimaryTheme(int color) {
++        switch (color) {
++            case 3: // dark theme
++                return R.style.Theme_DeviceDefault_Dark;
++            case 1: // grey theme
++                return R.style.Theme_DeviceDefault_Grey;
++            case 0: // default theme
++            case 2: // pixel theme
++            default:
++                return R.style.Theme_DeviceDefault_White;
++        }
++    }
++
++    private int getThemeMode() {
++        return Settings.Secure.getInt(mContext.getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++    }
++
++    private int getAccentColor() {
++        return Settings.Secure.getInt(mContext.getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++    }
++
++    public static void returnToDefaultTheme(Context context) {
++        Settings.Secure.putInt(context.getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++        Settings.Secure.putInt(context.getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++    }
++
++    private void dispatchCallbackAdded() {
++        for (int i = 0; i < mCallbacks.size(); i++) {
++            IThemeCallback callback = mCallbacks.get(i);
++            try {
++                if (callback != null) {
++                    callback.onCallbackAdded(getThemeMode(), getTheme(getAccentColor()));
++                }
++            } catch (RemoteException ex) {
++                // Callback is dead
++            } catch (NullPointerException e) {
++                Log.e(TAG, "NullPointer while calling onCallbackAdded: ", e);
++            }
++        }
++    }
++
++    private void dispatchThemeSettingChanged() {
++        for (int i = 0; i < mCallbacks.size(); i++) {
++            IThemeCallback callback = mCallbacks.get(i);
++            try {
++                if (callback != null) {
++                    callback.onThemeChanged(getThemeMode(), getTheme(getAccentColor()));
++                }
++            } catch (RemoteException ex) {
++                // Callback is dead
++            } catch (NullPointerException e) {
++                Log.e(TAG, "NullPointer while calling onCallbackAdded: ", e);
++            }
++        }
++    }
++
++    private class ThemeObserver extends ContentObserver {
++        private boolean mRegistered;
++
++        public ThemeObserver() {
++            super(new Handler());
++        }
++
++        @Override
++        public void onChange(boolean selfChange) {
++            dispatchThemeSettingChanged();
++        }
++
++        protected void register() {
++            if (!mRegistered) {
++                mContext.getContentResolver().registerContentObserver(
++                        Settings.Secure.getUriFor(Settings.Secure.THEME_PRIMARY_COLOR), true, this);
++                mContext.getContentResolver().registerContentObserver(
++                        Settings.Secure.getUriFor(Settings.Secure.THEME_ACCENT_COLOR), true, this);
++                mRegistered = true;
++                dispatchCallbackAdded();
++            }
++        }
++
++        protected void unregister() {
++            if (mRegistered) {
++                mContext.getContentResolver().unregisterContentObserver(this);
++                mRegistered = false;
++            }
++        }
++    }
++}
+diff --git a/services/core/java/com/android/server/om/OverlayManagerService.java b/services/core/java/com/android/server/om/OverlayManagerService.java
+index 658dd217195..c4fe1a9bc44 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerService.java
++++ b/services/core/java/com/android/server/om/OverlayManagerService.java
+@@ -56,6 +56,7 @@ import com.android.server.FgThread;
+ import com.android.server.IoThread;
+ import com.android.server.LocalServices;
+ import com.android.server.SystemService;
++import com.android.server.ThemeService;
+ import com.android.server.pm.Installer;
+ import com.android.server.pm.UserManagerService;
+ 
+@@ -212,9 +213,12 @@ public final class OverlayManagerService extends SystemService {
+ 
+     private final AtomicBoolean mPersistSettingsScheduled = new AtomicBoolean(false);
+ 
++    private Context mContext;
++
+     public OverlayManagerService(@NonNull final Context context,
+             @NonNull final Installer installer) {
+         super(context);
++        mContext = context;
+         mSettingsFile =
+             new AtomicFile(new File(Environment.getDataSystemDirectory(), "overlays.xml"));
+         mPackageManager = new PackageManagerHelper();
+@@ -462,6 +466,8 @@ public final class OverlayManagerService extends SystemService {
+                 return false;
+             }
+ 
++            ThemeService.returnToDefaultTheme(mContext);
++
+             final long ident = Binder.clearCallingIdentity();
+             try {
+                 synchronized (mLock) {
+diff --git a/services/core/java/com/android/server/policy/GlobalActions.java b/services/core/java/com/android/server/policy/GlobalActions.java
+index c096cddd9af..0f759720497 100644
+--- a/services/core/java/com/android/server/policy/GlobalActions.java
++++ b/services/core/java/com/android/server/policy/GlobalActions.java
+@@ -31,6 +31,8 @@ import com.android.internal.widget.LockPatternUtils;
+ import android.app.ActivityManager;
+ import android.app.ActivityManagerNative;
+ import android.app.Dialog;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
+ import android.app.INotificationManager;
+ import android.content.BroadcastReceiver;
+ import android.content.ComponentName;
+@@ -111,7 +113,7 @@ import static com.android.internal.util.cm.PowerMenuConstants.*;
+  * may show depending on whether the keyguard is showing, and whether the device
+  * is provisioned.
+  */
+-class GlobalActions implements DialogInterface.OnDismissListener, DialogInterface.OnClickListener  {
++public class GlobalActions implements DialogInterface.OnDismissListener, DialogInterface.OnClickListener  {
+ 
+     private static final String TAG = "GlobalActions";
+ 
+@@ -148,6 +150,22 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
+     private BitSet mAirplaneModeBits;
+     private final List<PhoneStateListener> mPhoneStateListeners = new ArrayList<>();
+ 
++    private ThemeManager mThemeManager;
++    private static int sTheme;
++
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            sTheme = color;
++        }
++    };
++
+     /**
+      * @param context everything needs a context :(
+      */
+@@ -244,6 +262,11 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
+         }
+         // Set the initial status of airplane mode toggle
+         mAirplaneState = getUpdatedAirplaneToggleState();
++
++        mThemeManager = (ThemeManager) mContext.getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
+     }
+ 
+     /**
+@@ -294,6 +317,21 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
+         }
+     }
+ 
++    public static Context getContext(Context context) {
++        int themeMode = Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++        int accentColor = Settings.Secure.getInt(context.getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++
++        if (themeMode == 0 && accentColor == 0) {
++            context.setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
++        } else {
++            context.getTheme().applyStyle(sTheme, true);
++        }
++
++        return context;
++    }
++
+     /**
+      * Create the global actions dialog.
+      * @return A new dialog.
+@@ -412,12 +450,12 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
+ 
+         mAdapter = new MyAdapter();
+ 
+-        AlertParams params = new AlertParams(mContext);
++        AlertParams params = new AlertParams(getContext(mContext));
+         params.mAdapter = mAdapter;
+         params.mOnClickListener = this;
+         params.mForceInverseBackground = true;
+ 
+-        GlobalActionsDialog dialog = new GlobalActionsDialog(mContext, params);
++        GlobalActionsDialog dialog = new GlobalActionsDialog(getContext(mContext), params);
+         dialog.setCanceledOnTouchOutside(false); // Handled by the custom class.
+ 
+         dialog.getListView().setItemsCanFocus(true);
+@@ -971,7 +1009,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
+ 
+         public View getView(int position, View convertView, ViewGroup parent) {
+             Action action = getItem(position);
+-            return action.create(mContext, convertView, parent, LayoutInflater.from(mContext));
++            return action.create(getContext(mContext), convertView, parent, LayoutInflater.from(mContext));
+         }
+     }
+ 
+diff --git a/services/core/java/com/android/server/power/ShutdownThread.java b/services/core/java/com/android/server/power/ShutdownThread.java
+index 54d2fcf7662..624b6fabf1c 100644
+--- a/services/core/java/com/android/server/power/ShutdownThread.java
++++ b/services/core/java/com/android/server/power/ShutdownThread.java
+@@ -56,6 +56,7 @@ import android.widget.ListView;
+ 
+ import com.android.internal.telephony.ITelephony;
+ import com.android.server.pm.PackageManagerService;
++import com.android.server.policy.GlobalActions;
+ 
+ import android.util.Log;
+ import android.view.WindowManager;
+@@ -148,10 +149,11 @@ public final class ShutdownThread extends Thread {
+      * @param confirm true if user confirmation is needed before shutting down.
+      */
+     public static void shutdown(final Context context, String reason, boolean confirm) {
++        final Context mContext = getContext(context);
+         mReboot = false;
+         mRebootSafeMode = false;
+         mReason = reason;
+-        shutdownInner(context, confirm);
++        shutdownInner(mContext, confirm);
+     }
+ 
+     private static boolean isAdvancedRebootPossible(final Context context) {
+@@ -209,11 +211,12 @@ public final class ShutdownThread extends Thread {
+             final CloseDialogReceiver closer = new CloseDialogReceiver(context);
+             final boolean advancedReboot = isAdvancedRebootPossible(context);
+ 
++            final Context mContext = getContext(context);
+             if (sConfirmDialog != null) {
+                 sConfirmDialog.dismiss();
+                 sConfirmDialog = null;
+             }
+-            AlertDialog.Builder confirmDialogBuilder = new AlertDialog.Builder(context)
++            AlertDialog.Builder confirmDialogBuilder = new AlertDialog.Builder(mContext)
+                     .setTitle(mRebootSafeMode
+                             ? com.android.internal.R.string.reboot_safemode_title
+                             : showRebootOption
+@@ -317,11 +320,12 @@ public final class ShutdownThread extends Thread {
+      * @param confirm true if user confirmation is needed before shutting down.
+      */
+     public static void reboot(final Context context, String reason, boolean confirm) {
++        final Context mContext = getContext(context);
+         mReboot = true;
+         mRebootSafeMode = false;
+         mRebootHasProgressBar = false;
+         mReason = reason;
+-        shutdownInner(context, confirm);
++        shutdownInner(mContext, confirm);
+     }
+ 
+     /**
+@@ -332,6 +336,7 @@ public final class ShutdownThread extends Thread {
+      * @param confirm true if user confirmation is needed before shutting down.
+      */
+     public static void rebootSafeMode(final Context context, boolean confirm) {
++        final Context mContext = getContext(context);
+         UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
+         if (um.hasUserRestriction(UserManager.DISALLOW_SAFE_BOOT)) {
+             return;
+@@ -341,7 +346,7 @@ public final class ShutdownThread extends Thread {
+         mRebootSafeMode = true;
+         mRebootHasProgressBar = false;
+         mReason = null;
+-        shutdownInner(context, confirm);
++        shutdownInner(mContext, confirm);
+     }
+ 
+     private static void beginShutdownSequence(Context context) {
+@@ -893,4 +898,8 @@ public final class ShutdownThread extends Thread {
+             }
+         }
+     }
++
++    private static Context getContext(Context context) {
++        return GlobalActions.getContext(context);
++    }
+ }
+diff --git a/services/java/com/android/server/SystemServer.java b/services/java/com/android/server/SystemServer.java
+index d01af54289e..0b3747a93d2 100644
+--- a/services/java/com/android/server/SystemServer.java
++++ b/services/java/com/android/server/SystemServer.java
+@@ -60,6 +60,7 @@ import com.android.internal.os.SamplingProfilerIntegration;
+ import com.android.internal.os.ZygoteInit;
+ import com.android.internal.policy.EmergencyAffordanceManager;
+ import com.android.internal.widget.ILockSettings;
++import com.android.server.ThemeService;
+ import com.android.server.accessibility.AccessibilityManagerService;
+ import com.android.server.am.ActivityManagerService;
+ import com.android.server.audio.AudioService;
+@@ -587,6 +588,7 @@ public final class SystemServer {
+         HardwarePropertiesManagerService hardwarePropertiesService = null;
+         Object wigigP2pService = null;
+         Object wigigService = null;
++        ThemeService themeService = null;
+ 
+         boolean disableStorage = SystemProperties.getBoolean("config.disable_storage", false);
+         boolean disableBluetooth = SystemProperties.getBoolean("config.disable_bluetooth", false);
+@@ -658,6 +660,11 @@ public final class SystemServer {
+             mActivityManagerService.installSystemProviders();
+             Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
+ 
++            traceBeginAndSlog("ThemeService");
++            themeService = new ThemeService(context);
++            ServiceManager.addService(Context.THEME_SERVICE, themeService);
++            Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
++
+             traceBeginAndSlog("StartVibratorService");
+             vibrator = new VibratorService(context);
+             ServiceManager.addService("vibrator", vibrator);

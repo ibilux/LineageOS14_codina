@@ -1,0 +1,55 @@
+MTP_DIRTY_HACK: Fix USB Tethering 
+
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index 0132140..006f682 100644
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -3726,6 +3726,12 @@ public boolean validate(String value) {
+          * @hide
+          */
+         public static final String MTP_DIRTY_HACK = "mtp_dirty_hack";
++
++        /**
++         * Whether to use the MTP by default USB Tethering
++         * @hide
++         */
++        public static final String MTP_DIRTY_HACK_SAVE = "mtp_dirty_hack_save";
+ 
+         /**
+          * MediaScanner behavior on boot.
+diff --git a/services/core/java/com/android/server/connectivity/Tethering.java b/services/core/java/com/android/server/connectivity/Tethering.java
+index 0142146..006f689 100644
+--- a/services/core/java/com/android/server/connectivity/Tethering.java
++++ b/services/core/java/com/android/server/connectivity/Tethering.java
+@@ -29,6 +29,7 @@
+ import android.content.Intent;
+ import android.content.IntentFilter;
+ import android.content.pm.PackageManager;
++import android.content.ContentResolver;
+ import android.content.res.Resources;
+ import android.hardware.usb.UsbManager;
+ import android.net.ConnectivityManager;
+@@ -1159,6 +1160,12 @@ public int setUsbTethering(boolean enable) {
+ 
+         synchronized (mPublicSync) {
+             if (enable) {
++                int currentState = Settings.System.getInt(mContext.getContentResolver(),
++                       Settings.System.MTP_DIRTY_HACK, 1);
++                Settings.System.putInt(mContext.getContentResolver(),
++                       Settings.System.MTP_DIRTY_HACK_SAVE, currentState);
++                Settings.System.putInt(mContext.getContentResolver(),
++                        Settings.System.MTP_DIRTY_HACK, 0);
+                 if (mRndisEnabled) {
+                     final long ident = Binder.clearCallingIdentity();
+                     try {
+@@ -1171,6 +1178,10 @@ public int setUsbTethering(boolean enable) {
+                     usbManager.setCurrentFunction(UsbManager.USB_FUNCTION_RNDIS, false);
+                 }
+             } else {
++                int oldState = Settings.System.getInt(mContext.getContentResolver(),
++                       Settings.System.MTP_DIRTY_HACK_SAVE, 1);
++                Settings.System.putInt(mContext.getContentResolver(),
++                        Settings.System.MTP_DIRTY_HACK, oldState);
+                 final long ident = Binder.clearCallingIdentity();
+                 try {
+                     tetherMatchingInterfaces(false, ConnectivityManager.TETHERING_USB);

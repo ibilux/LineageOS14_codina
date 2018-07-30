@@ -1,0 +1,21 @@
+Subject: [PATCH] Add null check for Wi-Fi command
+
+When WifiService is not ready during boot phase and Wi-Fi command
+is executed on console, NullPointerException happens.
+To prevent this, null check is needed.
+
+diff --git a/cmds/svc/src/com/android/commands/svc/WifiCommand.java b/cmds/svc/src/com/android/commands/svc/WifiCommand.java
+index 633dd97..e31cb53 100644
+--- a/cmds/svc/src/com/android/commands/svc/WifiCommand.java
++++ b/cmds/svc/src/com/android/commands/svc/WifiCommand.java
+@@ -51,6 +51,10 @@
+             if (validCommand) {
+                 IWifiManager wifiMgr
+                         = IWifiManager.Stub.asInterface(ServiceManager.getService(Context.WIFI_SERVICE));
++                if (wifiMgr == null) {
++                    System.err.println("Wi-Fi service is not ready");
++                    return;
++                }
+                 try {
+                     wifiMgr.setWifiEnabled("com.android.shell", flag);
+                 }

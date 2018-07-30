@@ -1,0 +1,20 @@
+Subject: [PATCH] Prevent potential NPE
+
+Ignore scroll events if mNestedScrollingChildRef is not set yet.
+It happens if BottomSheetBehavior view is inflated from a ViewStub for
+example, input events can arrive too soon.
+
+diff --git a/design/src/android/support/design/widget/BottomSheetBehavior.java b/design/src/android/support/design/widget/BottomSheetBehavior.java
+index d75623e..4419d86 100644
+--- a/design/src/android/support/design/widget/BottomSheetBehavior.java
++++ b/design/src/android/support/design/widget/BottomSheetBehavior.java
+@@ -385,7 +385,8 @@
+             setStateInternal(STATE_EXPANDED);
+             return;
+         }
+-        if (target != mNestedScrollingChildRef.get() || !mNestedScrolled) {
++        if (mNestedScrollingChildRef == null || target != mNestedScrollingChildRef.get()
++                || !mNestedScrolled) {
+             return;
+         }
+         int top;

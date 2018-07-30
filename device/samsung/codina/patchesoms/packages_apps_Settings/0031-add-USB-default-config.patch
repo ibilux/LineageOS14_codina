@@ -1,0 +1,294 @@
+Subject: [PATCH] [2/2] Setting: add USB default config
+
+reuse the dev settings USB setting to define a connect default USB mode
+
+diff --git a/res/values-ru/cr_arrays.xml b/res/values-ru/cr_arrays.xml
+new file mode 100644
+index f6c3378..bb89000
+--- /dev/null
++++ b/res/values-ru/cr_arrays.xml
+@@ -0,0 +1,36 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++
++    <!-- USB configuration names for Developer Settings.
++    This can be overridden by devices with additional USB configurations. -->
++    <string-array name="default_usb_configuration_titles">
++        <item>По умолчанию</item>
++        <item>Зарядка</item>
++        <item>MTP (USB режим)</item>
++        <item>PTP</item>
++        <item>RNDIS (USB Ethernet)</item>
++        <item>MIDI</item>
++        <item>UMS (USB режим)</item>
++    </string-array>
++
++    <!-- USB configuration values for Developer Settings.
++    These are lists of USB functions passed to the USB Manager to change USB configuraton.
++    This can be overridden by devices with additional USB configurations.
++    Do not translate. -->
++    <string-array name="default_usb_configuration_values" translatable="false">
++        <item>@string/default_usb_configuration</item>
++        <!-- Do not translate. -->
++        <item>none</item>
++        <!-- Do not translate. -->
++        <item>mtp</item>
++        <!-- Do not translate. -->
++        <item>ptp</item>
++        <!-- Do not translate. -->
++        <item>rndis</item>
++        <!-- Do not translate. -->
++        <item>midi</item>
++        <!-- Do not translate. -->
++        <item>mass_storage</item>
++    </string-array>
++
++</resources>
+diff --git a/res/values/cr_arrays.xml b/res/values/cr_arrays.xml
+index 7b18cd3..77b88fc 100644
+--- a/res/values/cr_arrays.xml
++++ b/res/values/cr_arrays.xml
+@@ -57,4 +57,36 @@
+         <item>3</item>
+     </string-array>
+ 
++    <!-- USB configuration names for Developer Settings.
++    This can be overridden by devices with additional USB configurations. -->
++    <string-array name="default_usb_configuration_titles">
++        <item>System default</item>
++        <item>Charging</item>
++        <item>MTP (Media Transfer Protocol)</item>
++        <item>PTP (Picture Transfer Protocol)</item>
++        <item>RNDIS (USB Ethernet)</item>
++        <item>MIDI</item>
++        <item>UMS (USB Mass Storage)</item>
++    </string-array>
++
++    <!-- USB configuration values for Developer Settings.
++    These are lists of USB functions passed to the USB Manager to change USB configuraton.
++    This can be overridden by devices with additional USB configurations.
++    Do not translate. -->
++    <string-array name="default_usb_configuration_values" translatable="false">
++        <item>@string/default_usb_configuration</item>
++        <!-- Do not translate. -->
++        <item>none</item>
++        <!-- Do not translate. -->
++        <item>mtp</item>
++        <!-- Do not translate. -->
++        <item>ptp</item>
++        <!-- Do not translate. -->
++        <item>rndis</item>
++        <!-- Do not translate. -->
++        <item>midi</item>
++        <!-- Do not translate. -->
++        <item>mass_storage</item>
++    </string-array>
++
+ </resources>
+diff --git a/res/values/projekt_strings.xml b/res/values/projekt_strings.xml
+index 7b18cd3..77b88fc 100644
+--- a/res/values/projekt_strings.xml
++++ b/res/values/projekt_strings.xml
+@@ -37,4 +37,10 @@
+    <string name="theme_force_enabled_title">Force enable theme</string>
+    <string name="theme_force_enabled_summary">Theme will be forcibly enabled nonetheless OMS state</string>
+ 
++   <!-- select USB configuration -->
++   <string name="select_default_usb_configuration_title">Select USB Configuration</string>
++   <string name="select_default_usb_configuration_dialog_title">Select default USB configuration</string>
++   <string name="default_usb_configuration" translatable="false" >default</string>
++   <string name="select_usb_default_confguration_warning">WARNING: Default USB configuration is enabled also when device is locked!\n\nDo you really want to enable this configuration?</string>
++
+ </resources>
+diff --git a/res/xml/development_prefs.xml b/res/xml/development_prefs.xml
+index f579f15..49db9c0 100644
+--- a/res/xml/development_prefs.xml
++++ b/res/xml/development_prefs.xml
+@@ -275,10 +275,12 @@
+ 
+         <ListPreference
+             android:key="select_usb_configuration"
+-            android:title="@string/select_usb_configuration_title"
+-            android:dialogTitle="@string/select_usb_configuration_dialog_title"
+-            android:entries="@array/usb_configuration_titles"
+-            android:entryValues="@array/usb_configuration_values" />
++            android:title="@string/select_default_usb_configuration_title"
++            android:dialogTitle="@string/select_default_usb_configuration_dialog_title"
++            android:entries="@array/default_usb_configuration_titles"
++            android:entryValues="@array/default_usb_configuration_values"
++            android:defaultValue="@string/default_usb_configuration"
++            android:persistent="false" />
+ 
+         <SwitchPreference
+             android:key="bluetooth_disable_absolute_volume"
+diff --git a/src/com/android/settings/DevelopmentSettings.java b/src/com/android/settings/DevelopmentSettings.java
+index f85a8ea..ffbb81d 100644
+--- a/src/com/android/settings/DevelopmentSettings.java
++++ b/src/com/android/settings/DevelopmentSettings.java
+@@ -372,6 +372,9 @@
+     private boolean mLogpersistCleared;
+     private Dialog mLogpersistClearDialog;
+ 
++    private Dialog mUSBConfigurationDialog;
++    private String mDefaultUsbConfiguration;
++
+     public DevelopmentSettings() {
+         super(UserManager.DISALLOW_DEBUGGING_FEATURES);
+     }
+@@ -503,7 +506,11 @@
+             }
+             mLogpersist = null;
+         }
++        mDefaultUsbConfiguration = getResources().getString(R.string.default_usb_configuration);
+         mUsbConfiguration = addListPreference(USB_CONFIGURATION_KEY);
++        updateUsbConfigurationValues();
++        mUsbConfiguration.setOnPreferenceChangeListener(this);
++
+         mWebViewProvider = addListPreference(WEBVIEW_PROVIDER_KEY);
+         mWebViewMultiprocess = findAndInitSwitchPref(WEBVIEW_MULTIPROCESS_KEY);
+         mBluetoothDisableAbsVolume = findAndInitSwitchPref(BLUETOOTH_DISABLE_ABSOLUTE_VOLUME_KEY);
+@@ -747,10 +754,10 @@
+     public View onCreateView(LayoutInflater inflater, ViewGroup container,
+             Bundle savedInstanceState) {
+         IntentFilter filter = new IntentFilter();
+-        filter.addAction(UsbManager.ACTION_USB_STATE);
++        /*filter.addAction(UsbManager.ACTION_USB_STATE);
+         if (getActivity().registerReceiver(mUsbReceiver, filter) == null) {
+             updateUsbConfigurationValues();
+-        }
++        }*/
+         return super.onCreateView(inflater, container, savedInstanceState);
+     }
+ 
+@@ -763,7 +770,7 @@
+         }
+         mSwitchBar.removeOnSwitchChangeListener(this);
+         mSwitchBar.hide();
+-        getActivity().unregisterReceiver(mUsbReceiver);
++        //getActivity().unregisterReceiver(mUsbReceiver);
+     }
+ 
+     void updateSwitchPreference(SwitchPreference switchPreference, boolean value) {
+@@ -1930,31 +1937,36 @@
+ 
+     private void updateUsbConfigurationValues() {
+         if (mUsbConfiguration != null) {
+-            UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
++            String[] values = getResources().getStringArray(R.array.default_usb_configuration_values);
++            String[] titles = getResources().getStringArray(R.array.default_usb_configuration_titles);
++            String func = Settings.Global.getString(getActivity().getContentResolver(),
++                    Settings.Global.USB_DEFAULT_CONFIGURATION);
++            if (func == null) {
++                func = mDefaultUsbConfiguration;
++            }
+ 
+-            String[] values = getResources().getStringArray(R.array.usb_configuration_values);
+-            String[] titles = getResources().getStringArray(R.array.usb_configuration_titles);
+             int index = 0;
+             for (int i = 0; i < titles.length; i++) {
+-                if (manager.isFunctionEnabled(values[i])) {
++                if (values[i].equals(func)) {
+                     index = i;
+                     break;
+                 }
+             }
+             mUsbConfiguration.setValue(values[index]);
+             mUsbConfiguration.setSummary(titles[index]);
+-            mUsbConfiguration.setOnPreferenceChangeListener(this);
+         }
+     }
+ 
+     private void writeUsbConfigurationOption(Object newValue) {
+-        UsbManager manager = (UsbManager)getActivity().getSystemService(Context.USB_SERVICE);
+         String function = newValue.toString();
+-        if (function.equals("none")) {
+-            manager.setCurrentFunction(function, false);
++        if (function.equals(mDefaultUsbConfiguration)) {
++            Settings.Global.putString(getActivity().getContentResolver(),
++                    Settings.Global.USB_DEFAULT_CONFIGURATION, null);
+         } else {
+-            manager.setCurrentFunction(function, true);
++            Settings.Global.putString(getActivity().getContentResolver(),
++                    Settings.Global.USB_DEFAULT_CONFIGURATION, function);
+         }
++        updateUsbConfigurationValues();
+     }
+ 
+     private void writeImmediatelyDestroyActivitiesOptions() {
+@@ -2411,7 +2423,7 @@
+     }
+ 
+     @Override
+-    public boolean onPreferenceChange(Preference preference, Object newValue) {
++    public boolean onPreferenceChange(Preference preference, final Object newValue) {
+         if (HDCP_CHECKING_KEY.equals(preference.getKey())) {
+             SystemProperties.set(HDCP_CHECKING_PROPERTY, newValue.toString());
+             updateHdcpValues();
+@@ -2439,7 +2451,31 @@
+             writeLogpersistOption(newValue, false);
+             return true;
+         } else if (preference == mUsbConfiguration) {
+-            writeUsbConfigurationOption(newValue);
++            if (newValue.equals(mDefaultUsbConfiguration)) {
++                writeUsbConfigurationOption(newValue);
++                return true;
++            }
++            if (mUSBConfigurationDialog != null) {
++                dismissDialogs();
++            }
++            mUSBConfigurationDialog = new AlertDialog.Builder(getActivity()).setMessage(
++                    getResources().getString(R.string.select_usb_default_confguration_warning))
++                    .setTitle(R.string.select_default_usb_configuration_dialog_title)
++                    .setIconAttribute(android.R.attr.alertDialogIcon)
++                    .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
++                        @Override
++                        public void onClick(DialogInterface dialog, int which) {
++                            writeUsbConfigurationOption(newValue);
++                        }
++                    })
++                    .setNegativeButton(android.R.string.no, new DialogInterface.OnClickListener() {
++                        @Override
++                        public void onClick(DialogInterface dialog, int which) {
++                            updateUsbConfigurationValues();
++                        }
++                    })
++                    .show();
++            mUSBConfigurationDialog.setOnDismissListener(this);
+             return true;
+         } else if (preference == mWindowAnimationScale) {
+             writeAnimationScaleOption(0, mWindowAnimationScale, newValue);
+@@ -2526,6 +2562,10 @@
+             mUpdateRecoveryDialog.dismiss();
+             mUpdateRecoveryDialog = null;
+         }
++        if (mUSBConfigurationDialog != null) {
++            mUSBConfigurationDialog.dismiss();
++            mUSBConfigurationDialog = null;
++        }
+     }
+ 
+     public void onClick(DialogInterface dialog, int which) {
+@@ -2628,6 +2668,8 @@
+         } else if (dialog == mUpdateRecoveryDialog) {
+             updateUpdateRecoveryOptions();
+             mUpdateRecoveryDialog = null;
++        } else if (dialog == mUSBConfigurationDialog) {
++            mUSBConfigurationDialog = null;
+         }
+     }
+ 
+@@ -2644,12 +2686,12 @@
+         }
+     }
+ 
+-    private BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
++    /*private BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
+         @Override
+         public void onReceive(Context context, Intent intent) {
+             updateUsbConfigurationValues();
+         }
+-    };
++    };*/
+ 
+     public static class SystemPropPoker extends AsyncTask<Void, Void, Void> {
+         @Override

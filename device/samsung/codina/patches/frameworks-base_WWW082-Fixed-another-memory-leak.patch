@@ -1,0 +1,16 @@
+ Fixed another memory leak
+
+Clicked heads-up notifications were never released
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/stack/NotificationStackScrollLayout.java b/packages/SystemUI/src/com/android/systemui/statusbar/stack/NotificationStackScrollLayout.java
+index 2ce667c..9e3ac59 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/stack/NotificationStackScrollLayout.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/stack/NotificationStackScrollLayout.java
+@@ -3214,6 +3214,7 @@ private void clearViewOverlays() {
+         for (View view : mClearOverlayViewsWhenFinished) {
+             StackStateAnimator.removeFromOverlay(view);
+         }
++        mClearOverlayViewsWhenFinished.clear();
+     }
+ 
+     private void runAnimationFinishedRunnables() {

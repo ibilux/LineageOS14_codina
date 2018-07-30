@@ -1,0 +1,109 @@
+From b64e0699f5539a161973fb20bf78fca112629873 Mon Sep 17 00:00:00 2001
+From: Serhij Kyryljan <kyryljan.serhij@gmail.com>
+Date: Fri, 10 Nov 2017 21:49:13 +0200
+Subject: [PATCH] RingtonePickerActivity: Add Color engine support
+
+Change-Id: Iaaf1bf8cb7c3e4cc852bf5eef278b5e13ecee16d
+---
+
+diff --git a/res/values/styles.xml b/res/values/styles.xml
+index d22d9c4..1a4fd99 100644
+--- a/res/values/styles.xml
++++ b/res/values/styles.xml
+@@ -19,4 +19,30 @@
+     <style name="PickerDialogTheme" parent="@*android:style/Theme.DeviceDefault.Settings.Dialog">
+     </style>
+ 
++    <style name="PickerDialogTheme_Dark">
++        <item name="android:windowFrame">@null</item>
++        <item name="android:windowTitleStyle">@*android:style/DialogWindowTitle.Material.Light</item>
++        <item name="android:windowTitleBackgroundStyle">@*android:style/DialogWindowTitleBackground.Material.Light</item>
++        <item name="android:windowBackground">@*android:drawable/dialog_background_material</item>
++        <item name="android:windowElevation">@*android:dimen/floating_window_z</item>
++        <item name="android:windowIsFloating">true</item>
++        <item name="android:windowContentOverlay">@null</item>
++        <item name="android:windowAnimationStyle">@*android:style/Animation.Material.Dialog</item>
++        <item name="android:windowSoftInputMode">stateUnspecified|adjustPan</item>
++        <item name="android:windowActionBar">false</item>
++        <item name="android:windowActionModeOverlay">true</item>
++        <item name="android:windowCloseOnTouchOutside">@*android:bool/config_closeDialogWhenTouchOutside</item>
++
++        <item name="android:colorBackgroundCacheHint">@null</item>
++
++        <item name="android:listPreferredItemPaddingLeft">?android:attr/dialogPreferredPadding</item>
++        <item name="android:listPreferredItemPaddingRight">?android:attr/dialogPreferredPadding</item>
++        <item name="android:listPreferredItemPaddingStart">?android:attr/dialogPreferredPadding</item>
++        <item name="android:listPreferredItemPaddingEnd">?android:attr/dialogPreferredPadding</item>
++
++        <item name="android:listDivider">@null</item>
++
++        <item name="@*android:preferencePanelStyle">@*android:style/PreferencePanel.Dialog</item>
++    </style>
++
+ </resources>
+diff --git a/src/com/android/providers/media/RingtonePickerActivity.java b/src/com/android/providers/media/RingtonePickerActivity.java
+index 2d41876..f42e8da 100755
+--- a/src/com/android/providers/media/RingtonePickerActivity.java
++++ b/src/com/android/providers/media/RingtonePickerActivity.java
+@@ -16,6 +16,9 @@
+ 
+ package com.android.providers.media;
+ 
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
++import android.content.Context;
+ import android.content.DialogInterface;
+ import android.content.Intent;
+ import android.content.res.Resources;
+@@ -122,6 +125,9 @@
+      */
+     private static Ringtone sPlayingRingtone;
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
+     private DialogInterface.OnClickListener mRingtoneClickListener =
+             new DialogInterface.OnClickListener() {
+ 
+@@ -144,10 +150,41 @@
+ 
+     };
+ 
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            RingtonePickerActivity.this.runOnUiThread(() -> {
++                RingtonePickerActivity.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
++
+     @Override
+     protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+ 
++        final int themeMode = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 1 || themeMode == 3) {
++            getTheme().applyStyle(R.style.PickerDialogTheme_Dark, true);
++        }
++
+         mHandler = new Handler();
+ 
+         Intent intent = getIntent();

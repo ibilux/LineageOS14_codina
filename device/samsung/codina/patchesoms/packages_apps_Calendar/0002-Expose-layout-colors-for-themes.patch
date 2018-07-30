@@ -1,0 +1,104 @@
+Expose layout colors for themes
+
+diff --git a/res/layout-sw600dp/edit_event.xml b/res/layout-sw600dp/edit_event.xml
+index 159ddb1367..74018b214b 100644
+--- a/res/layout-sw600dp/edit_event.xml
++++ b/res/layout-sw600dp/edit_event.xml
+@@ -31,7 +31,7 @@
+         android:gravity="center"
+         android:text="@string/loading"
+         style="?android:attr/textAppearanceLarge"
+-        android:background="#FFFFFFFF"/>
++        android:background="@color/loading_message_background"/>
+ 
+     <ScrollView
+         android:id="@+id/scroll_view"
+diff --git a/res/layout-sw600dp/edit_event_1.xml b/res/layout-sw600dp/edit_event_1.xml
+index 165dd5ce06..7836644806 100644
+--- a/res/layout-sw600dp/edit_event_1.xml
++++ b/res/layout-sw600dp/edit_event_1.xml
+@@ -87,7 +87,7 @@
+                 android:layout_marginRight="0dip"
+                 android:layout_height="wrap_content"
+                 android:minHeight="48dip"
+-                android:textColor="#FFFFFFFF" />
++                android:textColor="@color/calendar_textview" />
+             <ImageButton
+                 android:id="@+id/change_color_existing_event"
+                 style="?android:attr/buttonBarButtonStyle"
+@@ -466,4 +466,4 @@
+             android:prompt="@string/privacy_label" />
+     </TableRow>
+ 
+-</TableLayout>
+\ No newline at end of file
++</TableLayout>
+diff --git a/res/layout/edit_event.xml b/res/layout/edit_event.xml
+index 179ddb1367..74018b214b 100644
+--- a/res/layout/edit_event.xml
++++ b/res/layout/edit_event.xml
+@@ -29,7 +29,7 @@
+         android:gravity="center"
+         android:text="@string/loading"
+         style="?android:attr/textAppearanceLarge"
+-        android:background="#FFFFFFFF"/>
++        android:background="@color/loading_message_background"/>
+ 
+     <ScrollView
+         android:id="@+id/scroll_view"
+diff --git a/res/layout/edit_event_1.xml b/res/layout/edit_event_1.xml
+index 199ddb1367..74018b214b 100644
+--- a/res/layout/edit_event_1.xml
++++ b/res/layout/edit_event_1.xml
+@@ -71,15 +71,15 @@
+                 android:id="@+id/calendar_textview"
+                 android:layout_height="wrap_content"
+                 android:layout_width="match_parent"
+-                android:textColor="#FFFFFFFF"
++                android:textColor="@color/calendar_textview"
+                 android:layout_marginLeft="24dip"
+                 android:layout_marginRight="24dip"
+                 style="@style/TextAppearance.EditEvent_Value" />
+             <TextView
+                 android:id="@+id/calendar_textview_secondary"
+                 android:layout_height="wrap_content"
+                 android:layout_width="match_parent"
+-                android:textColor="#FFFFFFFF"
++                android:textColor="@color/calendar_textview_secondary"
+                 android:layout_marginLeft="24dip"
+                 android:layout_marginRight="24dip"
+                 android:textSize="14sp"
+@@ -351,4 +351,4 @@
+ 
+     <View
+         style="@style/EditEventSeparator"/>
+-</LinearLayout>
+\ No newline at end of file
++</LinearLayout>
+diff --git a/res/layout/edit_event_2.xml b/res/layout/edit_event_2.xml
+index 209ddb1367..74018b214b 100644
+--- a/res/layout/edit_event_2.xml
++++ b/res/layout/edit_event_2.xml
+@@ -210,7 +210,7 @@
+             android:layout_marginBottom="0dip"
+             android:textAllCaps="false"
+             android:textSize="18sp"
+-            android:textColor="#FF777777"
++            android:textColor="@color/reminder_add"
+             android:minHeight="20dip"
+             android:background="?android:attr/selectableItemBackground"
+             android:contentDescription="@string/accessibility_add_reminder"
+diff --git a/res/values/colors.xml b/res/values/colors.xml
+index 215dd5ce06..7836644806 100644
+--- a/res/values/colors.xml
++++ b/res/values/colors.xml
+@@ -190,4 +190,9 @@
+     <color name="select_calendars_list_selector_color">#00000000</color>
+     <color name="select_calendars_cache_color_hint_color">#00000000</color>
+ 
++    <color name="calendar_textview">#FFFFFFFF</color>
++    <color name="calendar_textview_secondary">#FFFFFFFF</color>
++    <color name="reminder_add">#FF777777</color>
++    <color name="loading_message_background">#FFFFFFFF</color>
++
+ </resources>

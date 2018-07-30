@@ -1,0 +1,47 @@
+Subject: [PATCH] Change the thread for handling shutdown of PowerManagerService
+
+Symptom:
+Watchdog due to blocked handler PowerManagerService during shutdown
+sequence.
+
+Root cause:
+While creating the dialogue for shutdown,
+HashMap object is accessed by createView() at LayoutInflater.
+This object is not excluded at multi threads.
+When this issue is occurred, multiple threads accesses this object.
+As the result, invalid state is generated inside HashMap object.
+And circulating reference is occurred at getEntry method.
+So system cannot get out of "for" loop.
+It blockes the processing of PowerManagerService thread
+and causes watchdog.
+That thing is happening.
+
+Solution:
+Change the thread for handling shutdown
+from "PowerManagerService" to "android.ui" thread.
+As the result, exclusive control is not needed.
+
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index 4b91654..9ef33dc 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -75,6 +75,7 @@
+ import com.android.internal.util.ArrayUtils;
+ import com.android.server.EventLogTags;
+ import com.android.server.LocalServices;
++import com.android.server.UiThread;
+ import com.android.server.ServiceThread;
+ import com.android.server.SystemService;
+ import com.android.server.Watchdog;
+@@ -2697,9 +2698,9 @@
+         };
+ 
+         // ShutdownThread must run on a looper capable of displaying the UI.
+-        Message msg = Message.obtain(mHandler, runnable);
++        Message msg = Message.obtain(UiThread.getHandler(), runnable);
+         msg.setAsynchronous(true);
+-        mHandler.sendMessage(msg);
++        UiThread.getHandler().sendMessage(msg);
+ 
+         // PowerManager.reboot() is documented not to return so just wait for the inevitable.
+         if (wait) {

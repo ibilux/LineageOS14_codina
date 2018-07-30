@@ -1,0 +1,17 @@
+Subject: [PATCH] Fix toast for RTL layout
+
+Fix bug: no text in toast when layout is RTL
+
+diff --git a/core/res/res/layout/transient_notification.xml b/core/res/res/layout/transient_notification.xml
+index fb1b4305b67b..5f9c1e8c4061 100644
+--- a/core/res/res/layout/transient_notification.xml
++++ b/core/res/res/layout/transient_notification.xml
+@@ -31,7 +31,7 @@
+         android:layout_gravity="center_horizontal"
+         android:layout_marginTop="-16dp"
+         android:layout_marginStart="-16dp"
+-        android:layout_toRightOf="@android:id/icon"
++        android:layout_toEndOf="@android:id/icon"
+         android:layout_below="@android:id/icon"
+         android:textAppearance="@style/TextAppearance.Toast"
+         android:textColor="@color/bright_foreground_dark"

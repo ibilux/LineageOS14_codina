@@ -1,0 +1,1322 @@
+ frameworks: implement system-wide Torch service
+
+Allows Torch and any camera to coexist peacefully. When torch is active
+and a camera is opened, the torch will be first shut down, and the
+camera will be allowed to continue opening, instead of displaying
+"Cannot connect to camera."
+
+diff --git a/Android.mk b/Android.mk
+index 599d73b..55dce49 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -164,6 +164,8 @@ LOCAL_SRC_FILES += \
+ 	../av/camera/aidl/android/hardware/camera2/ICameraDeviceCallbacks.aidl \
+ 	core/java/android/hardware/IConsumerIrService.aidl \
+ 	core/java/android/hardware/ISerialManager.aidl \
++	core/java/android/hardware/ITorchService.aidl \
++	core/java/android/hardware/ITorchCallback.aidl \
+ 	core/java/android/hardware/display/IDisplayManager.aidl \
+ 	core/java/android/hardware/display/IDisplayManagerCallback.aidl \
+ 	core/java/android/hardware/display/IVirtualDisplayCallback.aidl \
+diff --git a/core/java/android/app/SystemServiceRegistry.java b/core/java/android/app/SystemServiceRegistry.java
+index 1206af2..e005e13 100644
+--- a/core/java/android/app/SystemServiceRegistry.java
++++ b/core/java/android/app/SystemServiceRegistry.java
+@@ -43,9 +43,11 @@
+ import android.content.res.Resources;
+ import android.hardware.ConsumerIrManager;
+ import android.hardware.ISerialManager;
++import android.hardware.ITorchService;
+ import android.hardware.SensorManager;
+ import android.hardware.SerialManager;
+ import android.hardware.SystemSensorManager;
++import android.hardware.TorchManager;
+ import android.hardware.camera2.CameraManager;
+ import android.hardware.display.DisplayManager;
+ import android.hardware.hdmi.HdmiControlManager;
+@@ -121,6 +123,7 @@
+ import android.view.ContextThemeWrapper;
+ import android.view.LayoutInflater;
+ import com.android.internal.policy.PhoneLayoutInflater;
++//import com.android.server.TorchService;
+ import android.view.WindowManager;
+ import android.view.WindowManagerImpl;
+ import android.view.accessibility.AccessibilityManager;
+@@ -778,6 +781,17 @@ public MidiManager createService(ContextImpl ctx) {
+                 return new ContextHubManager(ctx.getOuterContext(),
+                   ctx.mMainThread.getHandler().getLooper());
+             }});
++
++        registerService(Context.TORCH_SERVICE, TorchManager.class,
++                new CachedServiceFetcher<TorchManager>() {
++            @Override
++            public TorchManager createService(ContextImpl ctx) {
++                IBinder b = ServiceManager.getService(Context.TORCH_SERVICE);
++                ITorchService service = ITorchService.Stub.asInterface(b);
++                final Context outerContext = ctx.getOuterContext();
++                return new TorchManager(outerContext, service);
++            }});
++
+     }
+ 
+     /**
+diff --git a/core/java/android/content/Context.java b/core/java/android/content/Context.java
+index 9831d91..928686b 100644
+--- a/core/java/android/content/Context.java
++++ b/core/java/android/content/Context.java
+@@ -3653,6 +3653,15 @@ public abstract boolean startInstrumentation(@NonNull ComponentName className,
+     public static final String GATEKEEPER_SERVICE = "android.service.gatekeeper.IGateKeeperService";
+ 
+     /**
++     * {@link com.android.server.TorchService} for accessing torch service.
++     *
++     * @see #getSystemService
++     * @see com.android.server.TorchService
++     * @hide
++     */
++    public static final String TORCH_SERVICE = "torch";
++
++    /**
+      * Determine whether the given permission is allowed for a particular
+      * process and user ID running in the system.
+      *
+diff --git a/core/java/android/hardware/Camera.java b/core/java/android/hardware/Camera.java
+index e70e827..1efae49 100644
+--- a/core/java/android/hardware/Camera.java
++++ b/core/java/android/hardware/Camera.java
+@@ -25,6 +25,7 @@
+ import android.graphics.Rect;
+ import android.graphics.SurfaceTexture;
+ import android.media.IAudioService;
++import android.os.Binder;
+ import android.os.Handler;
+ import android.os.IBinder;
+ import android.os.Looper;
+@@ -160,6 +161,7 @@
+     /* ### QC ADD-ONS: END */
+ 
+     private long mNativeContext; // accessed by native methods
++    private int mCameraId;
+     private EventHandler mEventHandler;
+     private ShutterCallback mShutterCallback;
+     private PictureCallback mRawImageCallback;
+@@ -189,6 +191,7 @@
+     private CameraDataCallback mCameraDataCallback;
+     private CameraMetaDataCallback mCameraMetaDataCallback;
+     /* ### QC ADD-ONS: END */
++    private Binder mTorchToken;
+ 
+     /**
+      * @deprecated This broadcast is no longer delivered by the system; use
+@@ -463,6 +466,7 @@ private Camera(int cameraId, int halVersion) {
+     }
+ 
+     private int cameraInitVersion(int cameraId, int halVersion) {
++        mCameraId = cameraId;
+         mShutterCallback = null;
+         mRawImageCallback = null;
+         mJpegCallback = null;
+@@ -474,6 +478,7 @@ private int cameraInitVersion(int cameraId, int halVersion) {
+         mCameraDataCallback = null;
+         mCameraMetaDataCallback = null;
+         /* ### QC ADD-ONS: END */
++        mTorchToken = new Binder();
+ 
+         Looper looper;
+         if ((looper = Looper.myLooper()) != null) {
+@@ -498,6 +503,12 @@ private int cameraInitVersion(int cameraId, int halVersion) {
+                 }
+             }
+         }
++
++        if (packageName == null && android.os.Process.SYSTEM_UID == Binder.getCallingUid()) {
++            packageName = "android";
++        }
++
++        notifyTorch(true);
+         return native_setup(new WeakReference<Camera>(this), cameraId, halVersion, packageName);
+     }
+ 
+@@ -560,6 +571,20 @@ public static Camera openUninitialized() {
+     Camera() {
+     }
+ 
++    private void notifyTorch(boolean inUse) {
++        IBinder b = ServiceManager.getService(Context.TORCH_SERVICE);
++        ITorchService torchService = ITorchService.Stub.asInterface(b);
++        try {
++            if (inUse) {
++                torchService.onCameraOpened(mTorchToken, mCameraId);
++            } else {
++                torchService.onCameraClosed(mTorchToken, mCameraId);
++            }
++        } catch (RemoteException e) {
++            // Ignore
++        }
++    }
++
+     @Override
+     protected void finalize() {
+         release();
+@@ -579,6 +604,7 @@ private native final int native_setup(Object camera_this, int cameraId, int halV
+     public final void release() {
+         native_release();
+         mFaceDetectionRunning = false;
++        notifyTorch(false);
+     }
+ 
+     /**
+diff --git a/core/java/android/hardware/ITorchCallback.aidl b/core/java/android/hardware/ITorchCallback.aidl
+new file mode 100644
+index 0000000..300d4b2
+--- /dev/null
++++ b/core/java/android/hardware/ITorchCallback.aidl
+@@ -0,0 +1,39 @@
++/**
++ * Copyright (c) 2015, The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package android.hardware;
++
++
++/**
++ * {@hide}
++ */
++oneway interface ITorchCallback {
++     /**
++      * Called when the flashlight turns off unexpectedly.
++      */
++     void onTorchOff();
++
++     /**
++      * Called when there is an error that turns the flashlight off.
++      */
++     void onTorchError();
++
++     /**
++      * Called when there is a change in availability of the flashlight functionality
++      * @param available true if the flashlight is currently available.
++      */
++     void onTorchAvailabilityChanged(boolean available);
++ }
+diff --git a/core/java/android/hardware/ITorchService.aidl b/core/java/android/hardware/ITorchService.aidl
+new file mode 100644
+index 0000000..5d0e651
+--- /dev/null
++++ b/core/java/android/hardware/ITorchService.aidl
+@@ -0,0 +1,35 @@
++/**
++ * Copyright (c) 2014, The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package android.hardware;
++
++import android.hardware.ITorchCallback;
++
++/**
++ * {@hide}
++ */
++interface ITorchService {
++    void onCameraOpened(IBinder token, int cameraId);
++    void onCameraClosed(IBinder token, int cameraId);
++
++    void setTorchEnabled(boolean on);
++    void toggleTorch();
++    boolean isTorchOn();
++    boolean isAvailable();
++
++    void addListener(ITorchCallback listener);
++    void removeListener(ITorchCallback listener);
++}
+diff --git a/core/java/android/hardware/TorchManager.java b/core/java/android/hardware/TorchManager.java
+new file mode 100644
+index 0000000..30bae3f
+--- /dev/null
++++ b/core/java/android/hardware/TorchManager.java
+@@ -0,0 +1,213 @@
++/**
++ * Copyright (c) 2015, The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package android.hardware;
++
++import android.content.Context;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.Message;
++import android.os.RemoteException;
++import android.util.Log;
++
++import java.util.ArrayList;
++import java.util.List;
++
++/**
++ * @hide
++ */
++public class TorchManager {
++
++    public static final String TAG = TorchManager.class.getSimpleName();
++
++    private static final int DISPATCH_TORCH_OFF = 1;
++    private static final int DISPATCH_TORCH_ERROR = 2;
++    private static final int DISPATCH_TORCH_AVAILABILITY_CHANGE = 3;
++
++    private Context mContext;
++    private ITorchService mService;
++    private TorchHandler mHandler;
++
++    private final List<TorchCallback> mCallbacks = new ArrayList<>();
++
++    public TorchManager(Context context, ITorchService service) {
++        mContext = context;
++        mService = service;
++        mHandler = new TorchHandler(Looper.getMainLooper());
++    }
++
++    private class TorchHandler extends Handler {
++        public TorchHandler(Looper looper) {
++            super(looper);
++        }
++
++        @Override
++        public void handleMessage(Message msg) {
++            switch (msg.what) {
++                case DISPATCH_TORCH_OFF:
++                    synchronized (mCallbacks) {
++                        List<TorchCallback> listenersToRemove = new ArrayList<>();
++                        for (TorchCallback listener : mCallbacks) {
++                            try {
++                                listener.onTorchOff();
++                            } catch (Throwable e) {
++                                Log.w(TAG, "Unable to update torch off", e);
++                                listenersToRemove.add(listener);
++                            }
++                        }
++                        if (listenersToRemove.size() > 0) {
++                            for (TorchCallback listener : listenersToRemove) {
++                                mCallbacks.remove(listener);
++                            }
++                        }
++                    }
++                    break;
++
++                case DISPATCH_TORCH_ERROR:
++                    synchronized (mCallbacks) {
++                        List<TorchCallback> listenersToRemove = new ArrayList<>();
++                        for (TorchCallback listener : mCallbacks) {
++                            try {
++                                listener.onTorchError();
++                            } catch (Throwable e) {
++                                Log.w(TAG, "Unable to update torch error", e);
++                                listenersToRemove.add(listener);
++                            }
++                        }
++                        if (listenersToRemove.size() > 0) {
++                            for (TorchCallback listener : listenersToRemove) {
++                                mCallbacks.remove(listener);
++                            }
++                        }
++                    }
++                    break;
++
++                case DISPATCH_TORCH_AVAILABILITY_CHANGE:
++                    synchronized (mCallbacks) {
++                        List<TorchCallback> listenersToRemove = new ArrayList<>();
++                        for (TorchCallback listener : mCallbacks) {
++                            try {
++                                listener.onTorchAvailabilityChanged(msg.arg1 == 1);
++                            } catch (Throwable e) {
++                                Log.w(TAG, "Unable to update torch availability change", e);
++                                listenersToRemove.add(listener);
++                            }
++                        }
++                        if (listenersToRemove.size() > 0) {
++                            for (TorchCallback listener : listenersToRemove) {
++                                mCallbacks.remove(listener);
++                            }
++                        }
++                    }
++                    break;
++            }
++        }
++    }
++
++    public void addListener(TorchCallback callback) {
++        synchronized (mCallbacks) {
++            if (mCallbacks.contains(callback)) {
++                throw new IllegalArgumentException("Torch client was already added");
++            }
++            if (mCallbacks.size() == 0) {
++                try {
++                    mService.addListener(mTorchChangeListener);
++                } catch (RemoteException e) {
++                    Log.w(TAG, "Unable to register torch listener");
++                }
++            }
++            mCallbacks.add(callback);
++        }
++    }
++
++    public void removeListener(TorchCallback callback) {
++        synchronized (mCallbacks) {
++            mCallbacks.remove(callback);
++            if (mCallbacks.size() == 0) {
++                try {
++                    mService.removeListener(mTorchChangeListener);
++                } catch (RemoteException e) {
++                    Log.w(TAG, "Unable to remove torch listener");
++                }
++            }
++        }
++    }
++
++    private final ITorchCallback mTorchChangeListener = new ITorchCallback.Stub() {
++        @Override
++        public void onTorchOff() throws RemoteException {
++            mHandler.sendEmptyMessage(DISPATCH_TORCH_OFF);
++        }
++
++        @Override
++        public void onTorchError() throws RemoteException {
++            mHandler.sendEmptyMessage(DISPATCH_TORCH_ERROR);
++        }
++
++        @Override
++        public void onTorchAvailabilityChanged(final boolean available) throws RemoteException {
++            mHandler.sendMessage(Message.obtain(mHandler, DISPATCH_TORCH_AVAILABILITY_CHANGE,
++                    available ? 1 : 0, 0));
++        }
++    };
++
++    public void setTorchEnabled(final boolean newState) {
++        mHandler.post(new Runnable() {
++            @Override
++            public void run() {
++                try {
++                    mService.setTorchEnabled(newState);
++                } catch (RemoteException e) {
++                    e.printStackTrace();
++                }
++            }
++        });
++    }
++
++    public boolean isTorchOn() {
++        try {
++            return mService.isTorchOn();
++        } catch (RemoteException e) {
++            return false;
++        }
++    }
++
++    public boolean isAvailable() {
++        try {
++            return mService.isAvailable();
++        } catch (RemoteException e) {
++            return false;
++        }
++    }
++
++    public interface TorchCallback {
++        /**
++         * Called when the torch turns off unexpectedly.
++         */
++        public void onTorchOff();
++        /**
++         * Called when there is an error that turns the torch off.
++         */
++        public void onTorchError();
++
++        /**
++         * Called when there is a change in availability of the torch functionality
++         * @param available true if the torch is currently available.
++         */
++        public void onTorchAvailabilityChanged(boolean available);
++    }
++
++
++}
+diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
+index f617fdd..fd18bbd 100644
+--- a/core/res/AndroidManifest.xml
++++ b/core/res/AndroidManifest.xml
+@@ -3142,6 +3142,13 @@
+     <permission android:name="android.permission.MODIFY_DAY_NIGHT_MODE"
+                 android:protectionLevel="signature|privileged" />
+ 
++    <!-- Allows an application to use the system Torch service
++        @hide-->
++    <permission android:name="android.permission.ACCESS_TORCH_SERVICE"
++        android:label="@string/permlab_accessTorchService"
++        android:description="@string/permdesc_accessTorchService"
++        android:protectionLevel="signature" />
++
+     <!-- The system process is explicitly the only one allowed to launch the
+          confirmation UI for full backup/restore -->
+     <uses-permission android:name="android.permission.CONFIRM_FULL_BACKUP"/>
+diff --git a/core/res/res/values/cr_strings.xml b/core/res/res/values/cr_strings.xml
+index d80bd60..7db4aca 100644
+--- a/core/res/res/values/cr_strings.xml
++++ b/core/res/res/values/cr_strings.xml
+@@ -25,4 +25,9 @@
+     <!-- [CHAR LIMIT=NONE] Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
+     <string name="permdesc_resetBatteryStats">Allows an application to reset the current low-level battery use data.</string>
+ 
++    <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
++    <string name="permlab_accessTorchService">access torch service</string>
++    <!-- Description of an application permission, listed so the user can choose whether they want to allow the application to do this. -->
++    <string name="permdesc_accessTorchService">Allows an app to access the torch service. Should never be needed for normal apps.</string>
++
+ </resources>
+diff --git a/packages/SystemUI/AndroidManifest.xml b/packages/SystemUI/AndroidManifest.xml
+index 2a7214b..2fb6599 100644
+--- a/packages/SystemUI/AndroidManifest.xml
++++ b/packages/SystemUI/AndroidManifest.xml
+@@ -123,7 +123,10 @@
+     <!-- Wifi Display -->
+     <uses-permission android:name="android.permission.CONFIGURE_WIFI_DISPLAY" />
+ 
+-    <uses-permission android:name="android.permission.CAMERA" />
++    <uses-permission android:name="android.permission.CAMERA" />
++
++    <!-- Torch tile -->
++    <uses-permission android:name="android.permission.ACCESS_TORCH_SERVICE" />
+ 
+     <!-- Screen Capturing -->
+     <uses-permission android:name="android.permission.MANAGE_MEDIA_PROJECTION" />
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/QSTile.java b/packages/SystemUI/src/com/android/systemui/qs/QSTile.java
+index 4082a32..6d76343 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/QSTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/QSTile.java
+@@ -446,7 +446,6 @@ public void handleMessage(Message msg) {
+         ZenModeController getZenModeController();
+         HotspotController getHotspotController();
+         CastController getCastController();
+-        FlashlightController getFlashlightController();
+         KeyguardMonitor getKeyguardMonitor();
+         UserSwitcherController getUserSwitcherController();
+         UserInfoController getUserInfoController();
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/FlashlightTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/FlashlightTile.java
+index e6b7f02..100430f 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tiles/FlashlightTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/FlashlightTile.java
+@@ -17,7 +17,9 @@
+ package com.android.systemui.qs.tiles;
+ 
+ import android.app.ActivityManager;
++import android.content.Context;
+ import android.content.Intent;
++import android.hardware.TorchManager;
+ import android.graphics.drawable.Drawable;
+ import android.provider.MediaStore;
+ import android.text.SpannableStringBuilder;
+@@ -28,30 +30,29 @@
+ import com.android.internal.logging.MetricsProto.MetricsEvent;
+ import com.android.systemui.R;
+ import com.android.systemui.qs.QSTile;
+-import com.android.systemui.statusbar.policy.FlashlightController;
+ 
+ /** Quick settings tile: Control flashlight **/
+ public class FlashlightTile extends QSTile<QSTile.BooleanState> implements
+-        FlashlightController.FlashlightListener {
++        TorchManager.TorchCallback {
+ 
+     private final AnimationIcon mEnable
+             = new AnimationIcon(R.drawable.ic_signal_flashlight_enable_animation,
+             R.drawable.ic_signal_flashlight_disable);
+     private final AnimationIcon mDisable
+             = new AnimationIcon(R.drawable.ic_signal_flashlight_disable_animation,
+             R.drawable.ic_signal_flashlight_enable);
+-    private final FlashlightController mFlashlightController;
++    private final TorchManager mTorchManager;
+ 
+     public FlashlightTile(Host host) {
+         super(host);
+-        mFlashlightController = host.getFlashlightController();
+-        mFlashlightController.addListener(this);
++        mTorchManager = (TorchManager) mContext.getSystemService(Context.TORCH_SERVICE);
++        mTorchManager.addListener(this);
+     }
+ 
+     @Override
+     protected void handleDestroy() {
+         super.handleDestroy();
+-        mFlashlightController.removeListener(this);
++        mTorchManager.removeListener(this);
+     }
+ 
+     @Override
+@@ -61,6 +62,7 @@ protected BooleanState newTileState() {
+ 
+     @Override
+     public void setListening(boolean listening) {
++
+     }
+ 
+     @Override
+@@ -84,8 +86,8 @@ protected void handleClick() {
+         }
+         MetricsLogger.action(mContext, getMetricsCategory(), !mState.value);
+         boolean newState = !mState.value;
++        mTorchManager.setTorchEnabled(newState);
+         refreshState(newState);
+-        mFlashlightController.setFlashlight(newState);
+     }
+ 
+     @Override
+@@ -101,7 +103,7 @@
+     @Override
+     protected void handleUpdateState(BooleanState state, Object arg) {
+         state.label = mHost.getContext().getString(R.string.quick_settings_flashlight_label);
+-        if (!mFlashlightController.isAvailable()) {
++        if (!mTorchManager.isAvailable()) {
+             Drawable icon = mHost.getContext().getDrawable(R.drawable.ic_signal_flashlight_disable)
+                     .mutate();
+             final int disabledColor = mHost.getContext().getColor(R.color.qs_tile_tint_unavailable);
+@@ -121,8 +123,9 @@ protected void handleUpdateState(BooleanState state, Object arg) {
+             }
+             state.value = value;
+         } else {
+-            state.value = mFlashlightController.isEnabled();
++            state.value = mTorchManager.isTorchOn();
+         }
++
+         final AnimationIcon icon = state.value ? mEnable : mDisable;
+         state.icon = icon;
+         state.contentDescription = mContext.getString(R.string.quick_settings_flashlight_label);
+@@ -145,17 +148,17 @@
+     }
+ 
+     @Override
+-    public void onFlashlightChanged(boolean enabled) {
+-        refreshState(enabled);
++    public void onTorchOff() {
++        refreshState(false);
+     }
+ 
+     @Override
+-    public void onFlashlightError() {
++    public void onTorchError() {
+         refreshState(false);
+     }
+ 
+     @Override
+-    public void onFlashlightAvailabilityChanged(boolean available) {
++    public void onTorchAvailabilityChanged(boolean available) {
+         refreshState();
+     }
+ }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/QSTileHost.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/QSTileHost.java
+index 5bc9992..15cf31b 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/QSTileHost.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/QSTileHost.java
+@@ -72,7 +72,6 @@
+ import com.android.systemui.statusbar.policy.BluetoothController;
+ import com.android.systemui.statusbar.policy.CastController;
+ import com.android.systemui.statusbar.policy.NextAlarmController;
+-import com.android.systemui.statusbar.policy.FlashlightController;
+ import com.android.systemui.statusbar.policy.HotspotController;
+ import com.android.systemui.statusbar.policy.KeyguardMonitor;
+ import com.android.systemui.statusbar.policy.LocationController;
+@@ -111,7 +110,6 @@
+     private final HotspotController mHotspot;
+     private final CastController mCast;
+     private final Looper mLooper;
+-    private final FlashlightController mFlashlight;
+     private final UserSwitcherController mUserSwitcherController;
+     private final UserInfoController mUserInfoController;
+     private final KeyguardMonitor mKeyguard;
+@@ -131,11 +129,11 @@ public QSTileHost(Context context, PhoneStatusBar statusBar,
+             BluetoothController bluetooth, LocationController location,
+             RotationLockController rotation, NetworkController network,
+             ZenModeController zen, HotspotController hotspot,
+-            CastController cast, FlashlightController flashlight,
+-            UserSwitcherController userSwitcher, UserInfoController userInfo,
+-            KeyguardMonitor keyguard, SecurityController security,
+-            BatteryController battery, StatusBarIconController iconController,
+-            NextAlarmController nextAlarmController) {
++            CastController cast, UserSwitcherController userSwitcher,
++            UserInfoController userInfo, KeyguardMonitor keyguard,
++            SecurityController security, BatteryController battery,
++            StatusBarIconController iconController,
++            NextAlarmController nextAlarmController) {
+         mContext = context;
+         mStatusBar = statusBar;
+         mBluetooth = bluetooth;
+@@ -145,7 +143,6 @@ public QSTileHost(Context context, PhoneStatusBar statusBar,
+         mZen = zen;
+         mHotspot = hotspot;
+         mCast = cast;
+-        mFlashlight = flashlight;
+         mUserSwitcherController = userSwitcher;
+         mUserInfoController = userInfo;
+         mKeyguard = keyguard;
+@@ -280,11 +277,6 @@ public CastController getCastController() {
+     }
+ 
+     @Override
+-    public FlashlightController getFlashlightController() {
+-        return mFlashlight;
+-    }
+-
+-    @Override
+     public KeyguardMonitor getKeyguardMonitor() {
+         return mKeyguard;
+     }
+diff --git a/services/core/java/com/android/server/TorchService.java b/services/core/java/com/android/server/TorchService.java
+new file mode 100644
+index 0000000..9b5f930
+--- /dev/null
++++ b/services/core/java/com/android/server/TorchService.java
+@@ -0,0 +1,466 @@
++/**
++ * Copyright (c) 2015, The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.server;
++
++import android.Manifest;
++import android.content.Context;
++import android.graphics.SurfaceTexture;
++import android.hardware.ITorchCallback;
++import android.hardware.ITorchService;
++import android.hardware.camera2.CameraAccessException;
++import android.hardware.camera2.CameraCaptureSession;
++import android.hardware.camera2.CameraCharacteristics;
++import android.hardware.camera2.CameraDevice;
++import android.hardware.camera2.CameraManager;
++import android.hardware.camera2.CameraMetadata;
++import android.hardware.camera2.CaptureRequest;
++import android.os.Binder;
++import android.os.Handler;
++import android.os.HandlerThread;
++import android.os.IBinder;
++import android.os.RemoteCallbackList;
++import android.os.RemoteException;
++import android.util.Log;
++import android.util.Size;
++import android.util.SparseArray;
++import android.view.Surface;
++
++import java.util.ArrayList;
++
++import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
++
++/**
++ * @hide
++ */
++public class TorchService extends ITorchService.Stub {
++    private static final String TAG = TorchService.class.getSimpleName();
++    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
++
++    private static final int DISPATCH_ERROR = 0;
++    private static final int DISPATCH_OFF = 1;
++    private static final int DISPATCH_AVAILABILITY_CHANGED = 2;
++
++    private final Context mContext;
++
++    private final SparseArray<CameraUserRecord> mCamerasInUse;
++
++    /** Call {@link #ensureHandler()} before using */
++    private Handler mHandler;
++
++    /** Lock on mListeners when accessing */
++    private RemoteCallbackList<ITorchCallback> mListeners = new RemoteCallbackList<>();
++
++    /** Lock on {@code this} when accessing */
++    private boolean mTorchEnabled;
++
++    /** Whether the camera is available **/
++    private boolean mTorchAvailable;
++
++    private int mTorchAppUid = 0;
++    private int mTorchCameraId = -1;
++
++    private CameraManager mCameraManager;
++    private CameraDevice mCameraDevice;
++    private CaptureRequest mFlashlightRequest;
++    private CameraCaptureSession mSession;
++    private SurfaceTexture mSurfaceTexture;
++    private Surface mSurface;
++
++    private static class CameraUserRecord {
++        IBinder token;
++        int pid;
++        int uid;
++
++        CameraUserRecord(IBinder token) {
++            this.token = token;
++            this.pid = Binder.getCallingPid();
++            this.uid = Binder.getCallingUid();
++        }
++    }
++
++    public TorchService(Context context) {
++        mContext = context;
++        mCamerasInUse = new SparseArray<CameraUserRecord>();
++        mCameraManager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
++        initialize();
++    }
++
++    public void initialize() {
++        try {
++            mTorchCameraId = Integer.valueOf(getCameraId());
++        } catch (Throwable e) {
++            Log.e(TAG, "Couldn't initialize.", e);
++            return;
++        }
++
++        if (mTorchCameraId != -1) {
++            ensureHandler();
++            mCameraManager.registerAvailabilityCallback(mAvailabilityCallback, mHandler);
++        }
++    }
++
++    @Override
++    public void onCameraOpened(final IBinder token, final int cameraId) {
++        if (DEBUG) Log.d(TAG, "onCameraOpened(token= " + token + ", cameraId=" + cameraId + ")");
++        boolean needTorchShutdown = false;
++
++        synchronized (mCamerasInUse) {
++            if (mTorchAppUid != -1 && Binder.getCallingUid() == mTorchAppUid) {
++                if (DEBUG) Log.d(TAG, "Camera was opened by torch app");
++                mTorchCameraId = cameraId;
++            } else {
++                // As a synchronous broadcast is an expensive operation, only
++                // attempt to kill torch if it actually grabbed the camera before
++                if (cameraId == mTorchCameraId) {
++                    if (mCamerasInUse.get(cameraId) != null) {
++                        if (DEBUG) Log.d(TAG, "Need to kill torch");
++                        needTorchShutdown = true;
++                    }
++                }
++            }
++        }
++
++        // Shutdown torch outside of lock - torch shutdown will call into onCameraClosed()
++        if (needTorchShutdown) {
++            mKillFlashlightRunnable.run();
++        }
++
++        try {
++            token.linkToDeath(new IBinder.DeathRecipient() {
++                @Override
++                public void binderDied() {
++                    synchronized (mCamerasInUse) {
++                        if (DEBUG) Log.d(TAG, "Camera " + cameraId + " client died");
++                        removeCameraUserLocked(token, cameraId);
++                    }
++                }
++            }, 0);
++            synchronized (mCamerasInUse) {
++                mCamerasInUse.put(cameraId, new CameraUserRecord(token));
++            }
++        } catch (RemoteException e) {
++            // ignore, already dead
++        }
++    }
++
++    @Override
++    public void onCameraClosed(final IBinder token, int cameraId) {
++        if (DEBUG) Log.d(TAG, "onCameraClosed(token=" + token + ", cameraId=" + cameraId + ")");
++        synchronized (mCamerasInUse) {
++            removeCameraUserLocked(token, cameraId);
++        }
++    }
++
++    @Override
++    public synchronized void setTorchEnabled(boolean enabled) {
++        mContext.enforceCallingOrSelfPermission(
++                Manifest.permission.ACCESS_TORCH_SERVICE, null);
++        if (mTorchEnabled != enabled) {
++            mTorchEnabled = enabled;
++            postUpdateFlashlight();
++        }
++    }
++
++    @Override
++    public void toggleTorch() {
++        mContext.enforceCallingOrSelfPermission(
++                Manifest.permission.ACCESS_TORCH_SERVICE, null);
++        setTorchEnabled(!mTorchEnabled);
++    }
++
++    @Override
++    public synchronized boolean isAvailable() {
++        mContext.enforceCallingOrSelfPermission(
++                Manifest.permission.ACCESS_TORCH_SERVICE, null);
++        return mTorchAvailable;
++    }
++
++    @Override
++    public boolean isTorchOn() {
++        mContext.enforceCallingOrSelfPermission(
++                Manifest.permission.ACCESS_TORCH_SERVICE, null);
++        return mTorchEnabled;
++    }
++
++    @Override
++    public void addListener(ITorchCallback l) throws RemoteException {
++        mContext.enforceCallingOrSelfPermission(
++                Manifest.permission.ACCESS_TORCH_SERVICE, null);
++        mListeners.register(l);
++    }
++
++    @Override
++    public void removeListener(ITorchCallback l) throws RemoteException {
++        mContext.enforceCallingOrSelfPermission(
++                Manifest.permission.ACCESS_TORCH_SERVICE, null);
++        mListeners.unregister(l);
++    }
++
++    private synchronized void ensureHandler() {
++        if (mHandler == null) {
++            HandlerThread thread = new HandlerThread(TAG, THREAD_PRIORITY_BACKGROUND);
++            thread.start();
++            mHandler = new Handler(thread.getLooper());
++        }
++    }
++
++    private void startDevice() throws CameraAccessException {
++        mTorchAppUid = Binder.getCallingUid();
++        final String cameraId = getCameraId();
++        if (DEBUG) Log.d(TAG, "startDevice(), cameraID: " + cameraId);
++        mTorchCameraId = Integer.valueOf(cameraId);
++        mCameraManager.openCamera(cameraId, mTorchCameraListener, mHandler);
++    }
++
++    private void startSession() throws CameraAccessException {
++        mSurfaceTexture = new SurfaceTexture(false);
++        Size size = getSmallestSize(mCameraDevice.getId());
++        mSurfaceTexture.setDefaultBufferSize(size.getWidth(), size.getHeight());
++        mSurface = new Surface(mSurfaceTexture);
++        ArrayList<Surface> outputs = new ArrayList<>(1);
++        outputs.add(mSurface);
++        mCameraDevice.createCaptureSession(outputs, mTorchSessionListener, mHandler);
++    }
++
++    private Size getSmallestSize(String cameraId) throws CameraAccessException {
++        Size[] outputSizes = mCameraManager.getCameraCharacteristics(cameraId)
++                .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
++                .getOutputSizes(SurfaceTexture.class);
++        if (outputSizes == null || outputSizes.length == 0) {
++            throw new IllegalStateException(
++                    "Camera " + cameraId + "doesn't support any outputSize.");
++        }
++        Size chosen = outputSizes[0];
++        for (Size s : outputSizes) {
++            if (chosen.getWidth() >= s.getWidth() && chosen.getHeight() >= s.getHeight()) {
++                chosen = s;
++            }
++        }
++        return chosen;
++    }
++
++    private void postUpdateFlashlight() {
++        ensureHandler();
++        mHandler.post(mUpdateFlashlightRunnable);
++    }
++
++    private String getCameraId() throws CameraAccessException {
++        String[] ids = mCameraManager.getCameraIdList();
++        for (String id : ids) {
++            CameraCharacteristics c = mCameraManager.getCameraCharacteristics(id);
++            Boolean flashAvailable = c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
++            Integer lensFacing = c.get(CameraCharacteristics.LENS_FACING);
++            if (flashAvailable != null && flashAvailable
++                    && lensFacing != null && lensFacing == CameraCharacteristics.LENS_FACING_BACK) {
++                return id;
++            }
++        }
++        return null;
++    }
++
++    private void updateFlashlight(boolean forceDisable) {
++        try {
++            boolean enabled;
++            synchronized (this) {
++                enabled = mTorchEnabled && !forceDisable;
++            }
++            if (enabled) {
++                if (mCameraDevice == null) {
++                    startDevice();
++                    return;
++                }
++                if (mSession == null) {
++                    startSession();
++                    return;
++                }
++                if (mFlashlightRequest == null) {
++                    CaptureRequest.Builder builder = mCameraDevice.createCaptureRequest(
++                            CameraDevice.TEMPLATE_PREVIEW);
++                    builder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_TORCH);
++                    builder.addTarget(mSurface);
++                    CaptureRequest request = builder.build();
++                    mSession.capture(request, null, mHandler);
++                    mFlashlightRequest = request;
++                }
++            } else {
++                if (mCameraDevice != null) {
++                    mCameraDevice.close();
++                    teardownTorch();
++                }
++            }
++
++        } catch (CameraAccessException|IllegalStateException|UnsupportedOperationException e) {
++            Log.e(TAG, "Error in updateFlashlight", e);
++            handleError();
++        }
++    }
++
++    private void removeCameraUserLocked(IBinder token, int cameraId) {
++        CameraUserRecord record = mCamerasInUse.get(cameraId);
++        if (record != null && record.token == token) {
++            if (DEBUG) Log.d(TAG, "Removing camera user " + token);
++            mCamerasInUse.delete(cameraId);
++        }
++    }
++
++    private void teardownTorch() {
++        mCameraDevice = null;
++        mSession = null;
++        mFlashlightRequest = null;
++        if (mSurface != null) {
++            mSurface.release();
++            mSurfaceTexture.release();
++        }
++        mSurface = null;
++        mSurfaceTexture = null;
++    }
++
++    private void handleError() {
++        synchronized (this) {
++            mTorchEnabled = false;
++        }
++        dispatchError();
++        dispatchOff();
++        updateFlashlight(true /* forceDisable */);
++    }
++
++
++    private final Runnable mUpdateFlashlightRunnable = new Runnable() {
++        @Override
++        public void run() {
++            updateFlashlight(false /* forceDisable */);
++        }
++    };
++
++    private final Runnable mKillFlashlightRunnable = new Runnable() {
++        @Override
++        public void run() {
++            synchronized (this) {
++                mTorchEnabled = false;
++            }
++            updateFlashlight(true /* forceDisable */);
++            dispatchOff();
++        }
++    };
++
++    private void dispatchOff() {
++        dispatchListeners(DISPATCH_OFF, false /* argument (ignored) */);
++    }
++
++    private void dispatchError() {
++        dispatchListeners(DISPATCH_ERROR, false /* argument (ignored) */);
++    }
++
++    private void dispatchAvailabilityChanged(boolean available) {
++        dispatchListeners(DISPATCH_AVAILABILITY_CHANGED, available);
++    }
++
++    private void dispatchListeners(int message, boolean argument) {
++        synchronized (mListeners) {
++            int N = mListeners.beginBroadcast();
++            for(int i=0; i < N; i++) {
++                ITorchCallback l = mListeners.getBroadcastItem(i);
++                try {
++                    if (message == DISPATCH_ERROR) {
++                        l.onTorchError();
++                    } else if (message == DISPATCH_OFF) {
++                        l.onTorchOff();
++                    } else if (message == DISPATCH_AVAILABILITY_CHANGED) {
++                        l.onTorchAvailabilityChanged(argument);
++                    }
++                } catch(RemoteException e) {
++                    Log.w(TAG, "Unable to post progress to client listener", e);
++                }
++            }
++            mListeners.finishBroadcast();
++        }
++    }
++
++    private final CameraDevice.StateListener mTorchCameraListener =
++            new CameraDevice.StateListener() {
++        @Override
++        public void onOpened(CameraDevice camera) {
++            mCameraDevice = camera;
++            postUpdateFlashlight();
++        }
++
++        @Override
++        public void onDisconnected(CameraDevice camera) {
++            if (mCameraDevice == camera) {
++                dispatchOff();
++                teardownTorch();
++            }
++        }
++
++        @Override
++        public void onError(CameraDevice camera, int error) {
++            Log.e(TAG, "Camera error: camera=" + camera + " error=" + error);
++            if (camera == mCameraDevice || mCameraDevice == null) {
++                handleError();
++            }
++        }
++    };
++
++    private final CameraCaptureSession.StateListener mTorchSessionListener =
++            new CameraCaptureSession.StateListener() {
++                @Override
++                public void onConfigured(CameraCaptureSession session) {
++                    if (mSurface != null) {
++                        mSession = session;
++                        postUpdateFlashlight();
++                    }
++                }
++
++                @Override
++                public void onConfigureFailed(CameraCaptureSession session) {
++                    Log.e(TAG, "Configure failed.");
++                    if (mSession == null || mSession == session) {
++                        handleError();
++                    }
++                }
++            };
++
++    private final CameraManager.AvailabilityCallback mAvailabilityCallback =
++            new CameraManager.AvailabilityCallback() {
++                @Override
++                public void onCameraAvailable(String cameraId) {
++                    if (DEBUG) Log.d(TAG, "onCameraAvailable(" + cameraId + ")");
++                    if (cameraId.equals(String.valueOf(mTorchCameraId))) {
++                        setTorchAvailable(true);
++                    }
++                }
++
++                @Override
++                public void onCameraUnavailable(String cameraId) {
++                    if (DEBUG) Log.d(TAG, "onCameraUnavailable(" + cameraId + ")");
++                    if (cameraId.equals(String.valueOf(mTorchCameraId))) {
++                        setTorchAvailable(false);
++                    }
++                }
++
++                private void setTorchAvailable(boolean available) {
++                    boolean changed;
++                    synchronized (TorchService.this) {
++                        changed = mTorchAvailable != available;
++                        mTorchAvailable = available;
++                    }
++                    if (changed) {
++                        if (DEBUG) Log.d(TAG, "dispatchAvailabilityChanged(" + available + ")");
++                        dispatchAvailabilityChanged(available);
++                    }
++                }
++            };
++}
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
+index 4dbd98b..18baaa6 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
+@@ -74,7 +74,6 @@
+ import com.android.systemui.statusbar.KeyguardAffordanceView;
+ import com.android.systemui.statusbar.KeyguardIndicationController;
+ import com.android.systemui.statusbar.policy.AccessibilityController;
+-import com.android.systemui.statusbar.policy.FlashlightController;
+ import com.android.systemui.statusbar.policy.PreviewInflater;
+ 
+ import java.util.Objects;
+@@ -118,7 +117,6 @@
+     private ActivityStarter mActivityStarter;
+     private UnlockMethodCache mUnlockMethodCache;
+     private LockPatternUtils mLockPatternUtils;
+-    private FlashlightController mFlashlightController;
+     private PreviewInflater mPreviewInflater;
+     private KeyguardIndicationController mIndicationController;
+     private AccessibilityController mAccessibilityController;
+@@ -309,10 +307,6 @@ public void setActivityStarter(ActivityStarter activityStarter) {
+         mActivityStarter = activityStarter;
+     }
+ 
+-    public void setFlashlightController(FlashlightController flashlightController) {
+-        mFlashlightController = flashlightController;
+-    }
+-
+     public void setAccessibilityController(AccessibilityController accessibilityController) {
+         mAccessibilityController = accessibilityController;
+         mLockIcon.setAccessibilityController(accessibilityController);
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
+index f2db807..c380967 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBar.java
+@@ -190,7 +190,6 @@
+ import com.android.systemui.statusbar.policy.BurnInProtectionController;
+ import com.android.systemui.statusbar.policy.CastControllerImpl;
+ import com.android.systemui.statusbar.policy.EncryptionHelper;
+-import com.android.systemui.statusbar.policy.FlashlightController;
+ import com.android.systemui.statusbar.policy.HeadsUpManager;
+ import com.android.systemui.statusbar.policy.HotspotControllerImpl;
+ import com.android.systemui.statusbar.policy.KeyButtonView;
+@@ -359,7 +358,6 @@
+     CastControllerImpl mCastController;
+     VolumeComponent mVolumeComponent;
+     KeyguardUserSwitcher mKeyguardUserSwitcher;
+-    FlashlightController mFlashlightController;
+     protected UserSwitcherController mUserSwitcherController;
+     NextAlarmController mNextAlarmController;
+     protected KeyguardMonitor mKeyguardMonitor;
+@@ -1054,8 +1052,6 @@ public void onBatteryStyleChanged(int style, int percentMode) enabled{
+         initSignalCluster(mKeyguardStatusBar);
+         initEmergencyCryptkeeperText();
+ 
+-        mFlashlightController = new FlashlightController(mContext);
+-        mKeyguardBottomArea.setFlashlightController(mFlashlightController);
+         mKeyguardBottomArea.setPhoneStatusBar(this);
+         mKeyguardBottomArea.setUserSetupComplete(mUserSetup);
+         mAccessibilityController = new AccessibilityController(mContext);
+@@ -1078,8 +1074,8 @@ public void onBatteryStyleChanged(int style, int percentMode) {
+             final QSTileHost qsh = SystemUIFactory.getInstance().createQSTileHost(mContext, this,
+                     mBluetoothController, mLocationController, mRotationLockController,
+                     mNetworkController, mZenModeController, mHotspotController,
+-                    mCastController, mFlashlightController,
+-                    mUserSwitcherController, mUserInfoController, mKeyguardMonitor,
++                    mCastController, mUserSwitcherController,
++                    mUserInfoController, mKeyguardMonitor,
+                     mSecurityController, mBatteryController, mIconController,
+                     mNextAlarmController);
+             mBrightnessMirrorController = new BrightnessMirrorController(mStatusBarWindow);
+@@ -3743,9 +3739,6 @@
+         if (KeyguardUpdateMonitor.getInstance(mContext) != null) {
+             KeyguardUpdateMonitor.getInstance(mContext).dump(fd, pw, args);
+         }
+-        if (mFlashlightController != null) {
+-            mFlashlightController.dump(fd, pw, args);
+-        }
+ 
+         FalsingManager.getInstance(mContext).dump(pw);
+         FalsingLog.dump(pw);
+diff --git a/services/java/com/android/server/SystemServer.java b/services/java/com/android/server/SystemServer.java
+index a1348c3..179dcba 100644
+--- a/services/java/com/android/server/SystemServer.java
++++ b/services/java/com/android/server/SystemServer.java
+@@ -846,6 +846,16 @@ private void startOtherServices() {
+                 Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
+             }
+ 
++            if (!disableNonCoreServices) {
++                traceBeginAndSlog("StartTorchService");
++                try {
++                    ServiceManager.addService(Context.TORCH_SERVICE, new TorchService(context));
++                } catch (Throwable e) {
++                    reportWtf("starting Torch Service", e);
++                }
++                Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
++            }
++
+             if (!disableNetwork) {
+                 traceBeginAndSlog("StartNetworkManagementService");
+                 try {
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/FlashlightTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/FlashlightTile.java
+index 06b7f02..100430f 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tiles/FlashlightTile.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/FlashlightTile.java
+@@ -74,11 +74,6 @@
+         return new Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA);
+     }
+ 
+-    @Override
+-    public boolean isAvailable() {
+-        return mFlashlightController.hasFlashlight();
+-    }
+-
+     @Override
+     protected void handleClick() {
+         if (ActivityManager.isUserAMonkey()) {
+diff --git a/packages/SystemUI/src/com/android/systemui/SystemUIFactory.java b/packages/SystemUI/src/com/android/systemui/SystemUIFactory.java
+index 00b7f02..100430f 100644
+--- a/packages/SystemUI/src/com/android/systemui/SystemUIFactory.java
++++ b/packages/SystemUI/src/com/android/systemui/SystemUIFactory.java
+@@ -39,7 +39,6 @@
+ import com.android.systemui.statusbar.policy.BatteryController;
+ import com.android.systemui.statusbar.policy.BluetoothController;
+ import com.android.systemui.statusbar.policy.CastController;
+-import com.android.systemui.statusbar.policy.FlashlightController;
+ import com.android.systemui.statusbar.policy.HotspotController;
+ import com.android.systemui.statusbar.policy.KeyguardMonitor;
+ import com.android.systemui.statusbar.policy.LocationController;
+@@ -106,13 +105,13 @@
+             BluetoothController bluetooth, LocationController location,
+             RotationLockController rotation, NetworkController network,
+             ZenModeController zen, HotspotController hotspot,
+-            CastController cast, FlashlightController flashlight,
+-            UserSwitcherController userSwitcher, UserInfoController userInfo,
+-            KeyguardMonitor keyguard, SecurityController security,
+-            BatteryController battery, StatusBarIconController iconController,
+-            NextAlarmController nextAlarmController) {
++            CastController cast, UserSwitcherController userSwitcher,
++            UserInfoController userInfo, KeyguardMonitor keyguard,
++            SecurityController security, BatteryController battery,
++            StatusBarIconController iconController,
++            NextAlarmController nextAlarmController) {
+         return new QSTileHost(context, statusBar, bluetooth, location, rotation, network, zen,
+-                hotspot, cast, flashlight, userSwitcher, userInfo, keyguard, security, battery,
++                hotspot, cast, userSwitcher, userInfo, keyguard, security, battery,
+                 iconController, nextAlarmController);
+     }
+ 

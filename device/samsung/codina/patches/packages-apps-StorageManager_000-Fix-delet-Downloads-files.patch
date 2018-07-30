@@ -1,0 +1,51 @@
+Subject: [PATCH] Fix a bug where Content Provider isn't updated after
+ deleteing Download files
+
+If a Download file is deleted on Storage Manager, but the file
+can be still displayed on other apps (e.g. Photo app), because
+missing scanFile() method after file operation
+
+diff --git a/src/com/android/storagemanager/deletionhelper/DownloadsDeletionType.java b/src/com/android/storagemanager/deletionhelper/DownloadsDeletionType.java
+index 1d3c095..357f7ba 100644
+--- a/src/com/android/storagemanager/deletionhelper/DownloadsDeletionType.java
++++ b/src/com/android/storagemanager/deletionhelper/DownloadsDeletionType.java
+@@ -20,6 +20,7 @@
+ import android.app.LoaderManager.LoaderCallbacks;
+ import android.content.Context;
+ import android.content.Loader;
++import android.media.MediaScannerConnection;
+ import android.os.AsyncTask;
+ import android.os.Bundle;
+ import android.os.Environment;
+@@ -83,11 +84,20 @@ public void clearFreeableData(Activity activity) {
+                 @Override
+                 public void run() {
+                     boolean succeeded = true;
++                    ArraySet<String> deletedFiles = new ArraySet<>();
+                     for (File entry : mFiles) {
+                         if (isChecked(entry)) {
+-                            succeeded = succeeded && entry.delete();
++                            if(entry.delete()){
++                                String absolutePath = entry.getAbsolutePath();
++                                deletedFiles.add(absolutePath);
++                            } else {
++                                succeeded = false;
++                            }
+                         }
+                     }
++                    if (deletedFiles.size() > 0) {
++                        scanFiles(activity, deletedFiles);
++                    }
+ 
+                     if (!succeeded) {
+                         MetricsLogger.action(activity,
+@@ -173,4 +183,9 @@ private void maybeUpdateListener() {
+             mListener.onFreeableChanged(mFiles.size(), mBytes);
+         }
+     }
++
++    private void scanFiles(Context context, ArraySet<String> deletedFiles) {
++        String[] paths =(String[]) deletedFiles.toArray(new String[deletedFiles.size()]);
++        MediaScannerConnection.scanFile(context, paths, null, null);
++    }
+ }

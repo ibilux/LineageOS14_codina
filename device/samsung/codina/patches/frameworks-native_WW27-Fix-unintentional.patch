@@ -1,0 +1,15 @@
+Subject: [PATCH] Fix unintentional fall-through in switch.
+
+diff --git a/libs/binder/Binder.cpp b/libs/binder/Binder.cpp
+index c4d47caed..d04074eed 100644
+--- a/libs/binder/Binder.cpp
++++ b/libs/binder/Binder.cpp
+@@ -240,6 +240,8 @@ status_t BBinder::onTransact(
+             if (resultReceiver != NULL) {
+                 resultReceiver->send(INVALID_OPERATION);
+             }
++
++            return NO_ERROR;
+         }
+ 
+         case SYSPROPS_TRANSACTION: {

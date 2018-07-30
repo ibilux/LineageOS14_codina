@@ -1,0 +1,14 @@
+ CMParts: no weather provider text: use accent color instead of system teal
+
+diff --git a/res/layout/empty_weather_state.xml b/res/layout/empty_weather_state.xml
+index 0158c80b36..0102316402 100644
+--- a/res/layout/empty_weather_state.xml
++++ b/res/layout/empty_weather_state.xml
+@@ -49,6 +49,6 @@
+                 android:textAppearance="?android:attr/textAppearanceSmall"
+                 android:text="@string/weather_settings_add_weather_provider"
+                 android:textAllCaps="true"
+-                android:textColor="@*android:color/material_deep_teal_500" />
++                android:textColor="?android:attr/colorAccent" />
+     </LinearLayout>
+ </FrameLayout>

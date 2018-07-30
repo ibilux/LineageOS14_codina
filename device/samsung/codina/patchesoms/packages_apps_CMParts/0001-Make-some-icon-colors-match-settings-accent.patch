@@ -1,0 +1,69 @@
+CMParts: Make some icon colors match settings accent 
+
+diff --git a/res/drawable/ic_bluetooth_48px.xml b/res/drawable/ic_bluetooth_48px.xml
+index 0158c80b36..d802316402 100644
+--- a/res/drawable/ic_bluetooth_48px.xml
++++ b/res/drawable/ic_bluetooth_48px.xml
+@@ -21,7 +21,7 @@
+     android:viewportHeight="48">
+ 
+     <path
+-        android:fillColor="@color/theme_accent"
++        android:fillColor="?android:attr/colorAccent"
+         android:pathData="M35.41 15.41L24 4h-2v15.17L12.83 10 10 12.83 21.17 24 10 35.17 12.83 38 22
+ 28.83V44h2l11.41-11.41L26.83 24l8.58-8.59zM26 11.66l3.76 3.76L26
+ 19.17v-7.51zm3.76 20.93L26 36.34v-7.52l3.76 3.77z" />
+diff --git a/res/drawable/ic_local_offer_48px.xml b/res/drawable/ic_local_offer_48px.xml
+index 014bb39d61..6d8cc639ba 100644
+--- a/res/drawable/ic_local_offer_48px.xml
++++ b/res/drawable/ic_local_offer_48px.xml
+@@ -21,7 +21,7 @@
+     android:viewportHeight="48">
+ 
+     <path
+-        android:fillColor="@color/theme_accent"
++        android:fillColor="?android:attr/colorAccent"
+         android:pathData="M42.82 23.16L24.83 5.17C24.1 4.45 23.1 4 22 4H8C5.79 4 4 5.79 4 8v14c0 1.11 .45
+ 2.11 1.18 2.83l18 18C23.9 43.55 24.9 44 26 44c1.1 0 2.11-.45
+ 2.83-1.17l14-14C43.55 28.1 44 27.1 44 26c0-1.11-.45-2.11-1.18-2.84zM11 14c-1.66
+diff --git a/res/drawable/ic_person.xml b/res/drawable/ic_person.xml
+index 01dfa94758..0f685963b0 100644
+--- a/res/drawable/ic_person.xml
++++ b/res/drawable/ic_person.xml
+@@ -21,7 +21,7 @@
+     android:viewportHeight="24">
+ 
+     <path
+-        android:fillColor="@color/theme_accent"
++        android:fillColor="?android:attr/colorAccent"
+         android:pathData="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8
+ 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+ </vector>
+diff --git a/res/drawable/ic_privacy_guard_on.xml b/res/drawable/ic_privacy_guard_on.xml
+index 01d2d1533d..8fbd894deb 100644
+--- a/res/drawable/ic_privacy_guard_on.xml
++++ b/res/drawable/ic_privacy_guard_on.xml
+@@ -19,7 +19,7 @@
+     android:height="24dp"
+     android:viewportWidth="24"
+     android:viewportHeight="24"
+-    android:tint="@color/theme_accent">
++    android:tint="?android:attr/colorAccent">
+ 
+     <path
+         android:fillColor="#FFFFFFFF"
+diff --git a/res/drawable/ic_signal_wifi_4_bar_48px.xml b/res/drawable/ic_signal_wifi_4_bar_48px.xml
+index 011f92ae54..38d4aacb5a 100644
+--- a/res/drawable/ic_signal_wifi_4_bar_48px.xml
++++ b/res/drawable/ic_signal_wifi_4_bar_48px.xml
+@@ -21,7 +21,7 @@
+     android:viewportHeight="48">
+ 
+     <path
+-        android:fillColor="@color/theme_accent"
++        android:fillColor="?android:attr/colorAccent"
+         android:pathData="M24.02 42.98L47.28 14c-.9-.68-9.85-8-23.28-8S1.62 13.32 .72 14l23.26 28.98 .02
+ .02 .02 -.02z" />
+-</vector>
+\ No newline at end of file
++</vector>

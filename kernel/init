@@ -1,0 +1,57 @@
+#!/stage1/busybox sh
+_PATH="$PATH"
+export PATH=/stage1
+
+busybox mkdir -p /sbin
+busybox cp /stage1/busybox /sbin/busybox
+busybox chmod 755 /sbin/busybox
+
+busybox cd /
+busybox date >>boot.txt
+exec >>boot.txt 2>&1
+busybox rm init
+busybox mount -t proc proc /proc
+busybox mount -t sysfs sysfs /sys
+
+busybox mount -t ext4 /dev/block/mmcblk0p17 /ramdisk
+
+busybox insmod /system/lib/modules/startup_reason.ko
+busybox insmod /system/lib/modules/exfat.ko
+busybox insmod /system/lib/modules/fuse.ko
+busybox insmod /system/lib/modules/sdcardfs.ko
+busybox insmod /system/lib/modules/f2fs.ko
+
+load_image=/stage1/boot.cpio
+
+if busybox grep -q lpm_boot=1 /proc/cmdline ; then
+       busybox echo 1 > /sys/module/doubletap2wake/parameters/enable
+       busybox echo 1 > /sys/module/sweep2wake/parameters/enable
+fi
+
+if busybox grep -q bootmode=2 /proc/cmdline ; then
+	# recovery boot
+	busybox chmod 644 /ramdisk/recovery.cpio
+	load_image=/ramdisk/recovery.cpio
+	# since it's pain, load j4fs and param from separate partition
+	busybox insmod /system/lib/modules/j4fs.ko
+	busybox mount -t j4fs /dev/block/mmcblk0p1 /mnt/.lfs
+
+	busybox insmod /system/lib/modules/param.ko
+	busybox insmod /system/lib/modules/exfat.ko
+	# busybox sh /ramdisk/00recovery
+fi
+
+if busybox test -f ${load_image} ; then
+	busybox cpio -i < ${load_image}
+fi
+
+if busybox test -f ${load_image}.gz ; then
+	busybox zcat ${load_image}.gz | busybox cpio -i -u
+fi
+
+busybox umount /sys
+busybox umount /proc
+busybox date >>boot.txt
+busybox rm -fr /stage1 /dev/*
+export PATH="${_PATH}"
+exec /init

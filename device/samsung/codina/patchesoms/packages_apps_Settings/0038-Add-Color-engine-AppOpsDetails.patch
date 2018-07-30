@@ -1,0 +1,133 @@
+Subject: [PATCH] AppOpsDetails: Add Color engine support
+
+diff --git a/src/com/android/settings/applications/AppOpsDetails.java b/src/com/android/settings/applications/AppOpsDetails.java
+index c53b567eb7..7f896c4228 100644
+--- a/src/com/android/settings/applications/AppOpsDetails.java
++++ b/src/com/android/settings/applications/AppOpsDetails.java
+@@ -19,6 +19,7 @@
+ 
+ import android.app.Activity;
+ import android.app.AppOpsManager;
++import android.app.ThemeManager;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.pm.ApplicationInfo;
+@@ -28,8 +29,12 @@
+ import android.content.pm.PermissionGroupInfo;
+ import android.content.pm.PermissionInfo;
+ import android.content.res.Resources;
++import android.graphics.Color;
++import android.graphics.ColorFilter;
+ import android.graphics.drawable.Drawable;
++import android.graphics.PorterDuff;
+ import android.os.Bundle;
++import android.provider.Settings;
+ import android.support.v14.preference.SwitchPreference;
+ import android.support.v7.preference.ListPreference;
+ import android.support.v7.preference.Preference;
+@@ -174,6 +179,9 @@ private boolean refreshUi() {
+             return false;
+         }
+ 
++        final int themeMode = Settings.Secure.getInt(getContext().getContentResolver(),
++            Settings.Secure.THEME_PRIMARY_COLOR, 0);
++
+         mPreferenceScreen.removeAll();
+         setAppHeader(mPackageInfo);
+ 
+@@ -194,6 +202,14 @@ private boolean refreshUi() {
+                     icon = getActivity().getDrawable(OP_ICONS.get(op));
+                 }
+ 
++                if (!ThemeManager.isOverlayEnabled()) {
++                    if (themeMode == 1 || themeMode == 3) {
++                        icon.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_ATOP);
++                    } else {
++                        icon.clearColorFilter();
++                    }
++                }
++
+                 final AppOpsManager.OpEntry firstOp = entry.getOpEntry(0);
+                 final int switchOp = AppOpsManager.opToSwitch(firstOp.getOp());
+ 
+diff --git a/src/com/android/settings/applications/AppOpsDetailsTop.java b/src/com/android/settings/applications/AppOpsDetailsTop.java
+index c3c70848aa..a42d238fcc 100644
+--- a/src/com/android/settings/applications/AppOpsDetailsTop.java
++++ b/src/com/android/settings/applications/AppOpsDetailsTop.java
+@@ -16,11 +16,23 @@
+ 
+ package com.android.settings.applications;
+ 
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
++import android.content.Context;
+ import android.content.Intent;
++import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
+ import android.preference.PreferenceActivity;
++import android.provider.Settings;
++
++import com.android.settings.R;
+ 
+ public class AppOpsDetailsTop extends PreferenceActivity {
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
+     @Override
+     public Intent getIntent() {
+         Intent modIntent = new Intent(super.getIntent());
+@@ -34,4 +46,39 @@ protected boolean isValidFragment(String fragmentName) {
+         if (AppOpsDetails.class.getName().equals(fragmentName)) return true;
+         return false;
+     }
++
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            AppOpsDetailsTop.this.runOnUiThread(() -> {
++                AppOpsDetailsTop.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
++
++    @Override
++    public void onCreate(Bundle savedInstanceState) {
++        final int themeMode = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 2) {
++            getTheme().applyStyle(R.style.settings_pixel_theme, true);
++        }
++        super.onCreate(savedInstanceState);
++    }
+ }
+diff --git a/src/com/android/settings/applications/AppOpsDetails.java b/src/com/android/settings/applications/AppOpsDetails.java
+index c53b567eb7..7f896c4228 100644
+--- a/src/com/android/settings/applications/AppOpsDetails.java
++++ b/src/com/android/settings/applications/AppOpsDetails.java
+@@ -202,7 +202,7 @@ private boolean refreshUi() {
+                     icon = getActivity().getDrawable(OP_ICONS.get(op));
+                 }
+ 
+-                if (!ThemeManager.isOverlayEnabled()) {
++                if (!ThemeManager.shouldOverlayEnabled(getContext())) {
+                     if (themeMode == 1 || themeMode == 3) {
+                         icon.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_ATOP);
+                     } else {

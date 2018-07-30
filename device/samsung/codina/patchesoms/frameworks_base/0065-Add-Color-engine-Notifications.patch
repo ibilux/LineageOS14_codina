@@ -1,0 +1,105 @@
+Subject: [PATCH] Notifications: Add Color engine support
+
+diff --git a/packages/SystemUI/res/layout/notification_guts.xml b/packages/SystemUI/res/layout/notification_guts.xml
+index 3097dbe7c9f..4ebf1899aa8 100644
+--- a/packages/SystemUI/res/layout/notification_guts.xml
++++ b/packages/SystemUI/res/layout/notification_guts.xml
+@@ -26,8 +26,7 @@
+         android:orientation="vertical"
+         android:paddingStart="@*android:dimen/notification_content_margin_start"
+         android:paddingEnd="8dp"
+-        android:background="@color/notification_guts_bg_color"
+-        android:theme="@*android:style/Theme.DeviceDefault.Light">
++        android:background="@color/notification_guts_bg_color">
+ 
+     <!-- header -->
+     <LinearLayout
+diff --git a/packages/SystemUI/res/values/styles.xml b/packages/SystemUI/res/values/styles.xml
+index 759e898680a..c2ba6bb39c7 100644
+--- a/packages/SystemUI/res/values/styles.xml
++++ b/packages/SystemUI/res/values/styles.xml
+@@ -337,16 +337,16 @@
+     </style>
+ 
+     <style name="TextAppearance.NotificationGuts.Secondary">
+-        <item name="android:textColor">?android:attr/textColorSecondary</item>
++        <item name="android:textColor">@*android:color/secondary_text_material_light</item>
+     </style>
+ 
+     <style name="TextAppearance.NotificationGuts.Primary">
+-        <item name="android:textColor">?android:attr/textColorPrimary</item>
++        <item name="android:textColor">@*android:color/primary_text_material_light</item>
+         <item name="android:textSize">16sp</item>
+     </style>
+ 
+     <style name="TextAppearance.NotificationGuts.Radio">
+-        <item name="android:textColor">?android:attr/textColorPrimary</item>
++        <item name="android:textColor">@*android:color/primary_text_material_light</item>
+     </style>
+ 
+     <style name="TextAppearance.NotificationGuts.Button">
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/ExpandableNotificationRow.java b/packages/SystemUI/src/com/android/systemui/statusbar/ExpandableNotificationRow.java
+index 39fd58b724d..570b172e2bd 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/ExpandableNotificationRow.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/ExpandableNotificationRow.java
+@@ -21,6 +21,8 @@
+ import android.animation.ObjectAnimator;
+ import android.animation.ValueAnimator.AnimatorUpdateListener;
+ import android.annotation.Nullable;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
+ import android.content.Context;
+ import android.graphics.drawable.AnimatedVectorDrawable;
+ import android.graphics.drawable.AnimationDrawable;
+@@ -28,6 +30,7 @@
+ import android.graphics.drawable.Drawable;
+ import android.os.Build;
+ import android.os.Bundle;
++import android.os.Handler;
+ import android.service.notification.StatusBarNotification;
+ import android.util.AttributeSet;
+ import android.util.FloatProperty;
+@@ -190,6 +193,9 @@ public Float get(ExpandableNotificationRow object) {
+     private View mGroupParentWhenDismissed;
+     private boolean mRefocusOnDismiss;
+ 
++    private Handler mHandler = new Handler();
++    private ThemeManager mThemeManager;
++
+     public boolean isGroupExpansionChanging() {
+         if (isChildInGroup()) {
+             return mNotificationParent.isGroupExpansionChanging();
+@@ -672,6 +678,21 @@ public void reInflateViews() {
+         mPublicLayout.reInflateViews();
+     }
+ 
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            mHandler.post(() -> {
++                reInflateViews();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            // no-op
++        }
++    };
++
+     public void setContentBackground(int customBackgroundColor, boolean animate,
+             NotificationContentView notificationContentView) {
+         if (getShowingLayout() == notificationContentView) {
+@@ -803,6 +824,11 @@ public ExpandableNotificationRow(Context context, AttributeSet attrs) {
+         super(context, attrs);
+         mFalsingManager = FalsingManager.getInstance(context);
+         initDimens();
++
++        mThemeManager = (ThemeManager) context.getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
+     }
+ 
+     private void initDimens() {

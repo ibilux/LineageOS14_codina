@@ -1,0 +1,45 @@
+Subject: [PATCH] [AM] Fix IndexOutOfBoundsException during forceStopPackageLocked.
+
+Symptom:
+system got IndexOutOfBoundsException during forceStopPackageLocked.
+
+Test:
+As below issue descibed sample app flows.
+https://issuetracker.google.com/issues/69285524
+
+RootCause:
+when calling forceStopPackageLocked, activity will be finished &
+resume top activity, if current top activity the package is same
+as current stopping package, start process will fail due to
+package frozen, then will doing forceStopPackageLocked again
+when caught start fail case,
+
+This will cause some of tasks in mTaskHistory may removed
+during 2nd forceStopPackageLocked, then back to the
+ 1st forceStopPackageLocked to execute finish activity again will got
+NPE when get task frm mTaskHistory due to index value is inconsistent.
+
+Solution:
+add more index checking to prevent task index inconsistent with
+task history size.
+
+diff --git a/services/core/java/com/android/server/am/ActivityStack.java b/services/core/java/com/android/server/am/ActivityStack.java
+index bde317a..086d24b 100644
+--- a/services/core/java/com/android/server/am/ActivityStack.java
++++ b/services/core/java/com/android/server/am/ActivityStack.java
+@@ -4927,9 +4927,15 @@
+         TaskRecord lastTask = null;
+         ComponentName homeActivity = null;
+         for (int taskNdx = mTaskHistory.size() - 1; taskNdx >= 0; --taskNdx) {
++            if (taskNdx >= mTaskHistory.size()) {
++                continue;
++            }
+             final ArrayList<ActivityRecord> activities = mTaskHistory.get(taskNdx).mActivities;
+             int numActivities = activities.size();
+             for (int activityNdx = 0; activityNdx < numActivities; ++activityNdx) {
++                if (activityNdx >= activities.size()) {
++                    break;
++                }
+                 ActivityRecord r = activities.get(activityNdx);
+                 final boolean sameComponent =
+                         (r.packageName.equals(packageName) && (filterByClasses == null

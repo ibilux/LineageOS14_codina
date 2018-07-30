@@ -1,0 +1,49 @@
+ Add system property to control config_enableAutoPowerModes
+
+Setting the "persist.sys.doze_powersave" property to "true" will enable
+config_enableAutoPowerModes on-the-go.
+
+diff --git a/services/core/java/com/android/server/DeviceIdleController.java b/services/core/java/com/android/server/DeviceIdleController.java
+index f76a687..ad555e8 100644
+--- a/services/core/java/com/android/server/DeviceIdleController.java
++++ b/services/core/java/com/android/server/DeviceIdleController.java
+@@ -63,6 +63,7 @@
+ import android.os.ServiceManager;
+ import android.os.ShellCommand;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.provider.Settings;
+ import android.util.ArrayMap;
+@@ -1318,8 +1319,7 @@ public void onStart() {
+         final PackageManager pm = getContext().getPackageManager();
+ 
+         synchronized (this) {
+-            mLightEnabled = mDeepEnabled = getContext().getResources().getBoolean(
+-                    com.android.internal.R.bool.config_enableAutoPowerModes) &&
++            mLightEnabled = mDeepEnabled = SystemProperties.getBoolean("persist.sys.doze_powersave", false) &&
+                     PackageManagerUtils.isAppInstalled(getContext(), "com.google.android.gms");
+             SystemConfig sysConfig = SystemConfig.getInstance();
+             ArraySet<String> allowPowerExceptIdle = sysConfig.getAllowInPowerSaveExceptIdle();
+diff --git a/services/usage/java/com/android/server/usage/UsageStatsService.java b/services/usage/java/com/android/server/usage/UsageStatsService.java
+index f76a688..ad555e8 100644
+--- a/services/usage/java/com/android/server/usage/UsageStatsService.java
++++ b/services/usage/java/com/android/server/usage/UsageStatsService.java
+@@ -58,6 +58,7 @@
+ import android.os.RemoteException;
+ import android.os.ServiceManager;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.os.UserManager;
+ import android.provider.Settings;
+@@ -190,8 +191,7 @@ public void onStart() {
+         getContext().registerReceiverAsUser(new PackageReceiver(), UserHandle.ALL, packageFilter,
+                 null, mHandler);
+ 
+-        mAppIdleEnabled = getContext().getResources().getBoolean(
+-                com.android.internal.R.bool.config_enableAutoPowerModes) &&
++        mAppIdleEnabled = SystemProperties.getBoolean("persist.sys.doze_powersave", false) &&
+                 PackageManagerUtils.isAppInstalled(getContext(), "com.google.android.gms");
+         if (mAppIdleEnabled) {
+             IntentFilter deviceStates = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);

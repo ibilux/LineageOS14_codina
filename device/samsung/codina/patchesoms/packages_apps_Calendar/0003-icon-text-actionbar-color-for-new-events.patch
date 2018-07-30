@@ -1,0 +1,47 @@
+Change icon/text actionbar color for new events 
+
+diff --git a/res/layout/edit_event_custom_actionbar.xml b/res/layout/edit_event_custom_actionbar.xml
+index 229ddb1367..74018b214b 100644
+--- a/res/layout/edit_event_custom_actionbar.xml
++++ b/res/layout/edit_event_custom_actionbar.xml
+@@ -29,6 +29,7 @@
+ 
+         <ImageView
+             android:src="@drawable/ic_menu_cancel_holo_light"
++            android:tint="@color/edit_event_icon_tint_color"
+             style="@style/EditEventCustomActionButtonImage" />
+         <TextView
+             android:text="@string/discard_label"
+@@ -43,6 +44,7 @@
+ 
+         <ImageView
+             android:src="@drawable/ic_menu_done_holo_light"
++            android:tint="@color/edit_event_icon_tint_color"
+             style="@style/EditEventCustomActionButtonImage" />
+         <TextView
+             android:text="@string/save_label"
+diff --git a/res/values/styles.xml b/res/values/styles.xml
+index 235dd5ce06..7836644806 100644
+--- a/res/values/styles.xml
++++ b/res/values/styles.xml
+@@ -215,7 +215,7 @@
+         <item name="android:layout_height">wrap_content</item>
+         <item name="android:layout_width">wrap_content</item>
+         <item name="android:textAppearance">?android:attr/actionMenuTextAppearance</item>
+-        <item name="android:textColor">?android:attr/actionMenuTextColor</item>
++        <item name="android:textColor">@color/edit_event_action_text_color</item>
+         <item name="android:orientation">horizontal</item>
+         <item name="android:singleLine">true</item>
+         <item name="android:ellipsize">none</item>
+diff --git a/res/values/colors.xml b/res/values/colors.xml
+index 245dd5ce06..7836644806 100644
+--- a/res/values/colors.xml
++++ b/res/values/colors.xml
+@@ -195,4 +195,7 @@
+     <color name="reminder_add">#FF777777</color>
+     <color name="loading_message_background">#FFFFFFFF</color>
+ 
++    <color name="edit_event_action_text_color">#FFFFFFFF</color>
++    <color name="edit_event_icon_tint_color">#FFFFFFFF</color>
++
+ </resources>

@@ -1,0 +1,19 @@
+Subject: [PATCH 40/54] OMS: Add hide annotation to MODIFY_OVERLAYS permission
+
+* Modifications in this file affect the public API, so we must hide our
+  additions to build in release mode
+
+diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
+index 87ca559609f..6af7d84f53d 100644
+--- a/core/res/AndroidManifest.xml
++++ b/core/res/AndroidManifest.xml
+@@ -3217,7 +3217,8 @@
+     <permission android:name="android.permission.SUBSTITUTE_NOTIFICATION_APP_NAME"
+                 android:protectionLevel="signature|privileged" />
+ 
+-    <!-- Allows an application to make calls to OverlayManagerService.-->
++    <!-- Allows an application to make calls to OverlayManagerService.
++         @hide -->
+     <permission android:name="android.permission.MODIFY_OVERLAYS"
+         android:label="@string/permlab_modifyOverlays"
+         android:description="@string/permdesc_modifyOverlays"

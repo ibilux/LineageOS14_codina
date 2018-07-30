@@ -1,0 +1,32 @@
+Subject: [PATCH 38/54] Add a protected broadcast for Masquerade events
+
+Parse extras to get event details. Docs will be available
+in Masquerade source code
+
+diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
+index 237cd72eb8c..87ca559609f 100644
+--- a/core/res/AndroidManifest.xml
++++ b/core/res/AndroidManifest.xml
+@@ -530,6 +530,8 @@
+     <!-- ====================================================================== -->
+     <eat-comment />
+ 
++    <protected-broadcast android:name="masquerade.substratum.STATUS_CHANGED" />
++
+     <!-- ====================================================================== -->
+     <!-- Permissions for accessing user's contacts including personal profile   -->
+     <!-- ====================================================================== -->
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index 33bbf257f1c..904bc5bd548 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -4584,7 +4584,8 @@ public class PackageManagerService extends IPackageManager.Stub {
+                 if (actionName.startsWith("android.net.netmon.lingerExpired")
+                         || actionName.startsWith("com.android.server.sip.SipWakeupTimer")
+                         || actionName.startsWith("com.android.internal.telephony.data-reconnect")
+-                        || actionName.startsWith("android.net.netmon.launchCaptivePortalApp")) {
++                        || actionName.startsWith("android.net.netmon.launchCaptivePortalApp")
++                        || actionName.startsWith("masquerade.substratum.STATUS_CHANGED")) {
+                     return true;
+                 }
+             }

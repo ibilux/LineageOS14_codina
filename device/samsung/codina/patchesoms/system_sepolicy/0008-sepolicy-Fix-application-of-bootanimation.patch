@@ -1,0 +1,25 @@
+Subject: [PATCH 08/13] sepolicy: Fix application of bootanimation
+
+diff --git a/masquerade.te b/masquerade.te
+index 2f17030..0cbbdb2 100644
+--- a/masquerade.te
++++ b/masquerade.te
+@@ -61,3 +61,8 @@ allow masquerade property_socket:sock_file write;
+ allow masquerade system_prop:property_service set;
+ allow masquerade connectivity_service:service_manager find;
+ allow masquerade display_service:service_manager find;
++
++allow masquerade media_rw_data_file:dir { search write };
++allow masquerade media_rw_data_file:file { open unlink };
++allow masquerade network_management_service:service_manager find;
++allow masquerade media_rw_data_file:dir remove_name;
+diff --git a/system_server.te b/system_server.te
+index 5e2a3a8..c544803 100644
+--- a/system_server.te
++++ b/system_server.te
+@@ -577,3 +577,5 @@ neverallow system_server { dev_type -frp_block_device }:blk_file no_rw_file_perm
+ neverallow system_server self:process execmem;
+ neverallow system_server ashmem_device:chr_file execute;
+ neverallow system_server system_server_tmpfs:file execute;
++
++allow system_server theme_data_file:dir search;

@@ -1,0 +1,177 @@
+Subject: [PATCH] Allow simple mail content theming
+
+Adds a boolean to enable mail content theming.
+When enabled, the exposed colors will be added into a css
+which will be added to the mail, allowing to change mail
+text colors.
+
+diff --git a/res/layout/quoted_text.xml b/res/layout/quoted_text.xml
+index a591341..18a07e2 100644
+--- a/res/layout/quoted_text.xml
++++ b/res/layout/quoted_text.xml
+@@ -61,7 +61,7 @@
+         android:id="@+id/divider_bar"
+         style="@style/DefaultDividerStyle" />
+ 
+-    <WebView android:id="@+id/quoted_text_web_view"
++    <com.android.mail.browse.ThemableWebView android:id="@+id/quoted_text_web_view"
+         android:layout_height="wrap_content"
+         android:layout_width="match_parent"
+         android:focusableInTouchMode="false"
+diff --git a/res/values/aicp_colors.xml b/res/values/aicp_colors.xml
+index 519728c..cf86c1f 100644
+--- a/res/values/aicp_colors.xml
++++ b/res/values/aicp_colors.xml
+@@ -33,5 +33,12 @@
+     <color name="widget_loading_text">@android:color/black</color>
+     <color name="widget_tap_to_configure_folder_sync_bg">@android:color/darker_gray</color>
+ 
++    <!-- When enabled, a css will get added to emails, allowing to theme the colors below -->
++    <bool name="theme_webview">false</bool>
++    <color name="webview_bg">@android:color/white</color>
++    <color name="webview_body">#000000</color>
++    <color name="webview_a_link">#0000EE</color>
++    <color name="webview_a_active">#EE0000</color>
++    <color name="webview_a_visited">#551A8B</color>
+ </resources>
+ 
+diff --git a/res/values/aicp_strings.xml b/res/values/aicp_strings.xml
+new file mode 100644
+index 0000000..07bd3b4
+--- /dev/null
++++ b/res/values/aicp_strings.xml
+@@ -0,0 +1,21 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<resources>
++    <string name="webview_css" translatable="false"><![CDATA[
++        <style media=\"screen\" type=\"text/css\">
++            body {
++                color: ?resources/body ;
++            }
++            a:link {
++                color: ?resources/a_link ;
++            }
++            a:active {
++                color: ?resources/a_active ;
++            }
++            a:visited {
++                color: ?resources/a_visited ;
++            }
++        </style>
++        ]]></string>
++</resources>
++
+diff --git a/src/com/android/mail/browse/MailWebView.java b/src/com/android/mail/browse/MailWebView.java
+index 4b52212..445856a 100644
+--- a/src/com/android/mail/browse/MailWebView.java
++++ b/src/com/android/mail/browse/MailWebView.java
+@@ -4,7 +4,7 @@
+ import android.util.AttributeSet;
+ import android.webkit.WebView;
+ 
+-public class MailWebView extends WebView {
++public class MailWebView extends ThemableWebView {
+ 
+     // NARROW_COLUMNS reflow can trigger the document to change size, so notify interested parties.
+     // This is also a good trigger to know when to alter scroll position.
+diff --git a/src/com/android/mail/browse/MessageWebView.java b/src/com/android/mail/browse/MessageWebView.java
+index 9f66a8f..767c740 100644
+--- a/src/com/android/mail/browse/MessageWebView.java
++++ b/src/com/android/mail/browse/MessageWebView.java
+@@ -32,7 +32,7 @@
+ /**
+  * A WebView designed to live within a {@link MessageScrollView}.
+  */
+-public class MessageWebView extends WebView implements MessageScrollView.Touchable {
++public class MessageWebView extends ThemableWebView implements MessageScrollView.Touchable {
+ 
+     private static final String LOG_TAG = LogTag.getLogTag();
+ 
+diff --git a/src/com/android/mail/browse/ThemableWebView.java b/src/com/android/mail/browse/ThemableWebView.java
+new file mode 100644
+index 0000000..9ee081e
+--- /dev/null
++++ b/src/com/android/mail/browse/ThemableWebView.java
+@@ -0,0 +1,81 @@
++/*
++ * Copyright (C) 2017 SpiritCroc spiritcroc@gmail.com
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.mail.browse;
++
++import android.content.Context;
++import android.util.AttributeSet;
++import android.webkit.WebView;
++
++import com.android.mail.R;
++
++public class ThemableWebView extends WebView {
++
++    public ThemableWebView(Context context) {
++        super(context);
++    }
++
++    public ThemableWebView(Context context, AttributeSet attrs) {
++        super(context, attrs);
++    }
++
++    public ThemableWebView(Context context, AttributeSet attrs, int defStyleAttr) {
++        super(context, attrs, defStyleAttr);
++    }
++
++    public ThemableWebView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
++        super(context, attrs, defStyleAttr, defStyleRes);
++    }
++
++    @Override
++    public void loadData(String data, String mimeType, String encoding) {
++        super.loadData(getThemedData(data), mimeType, encoding);
++    }
++
++    @Override
++    public void loadDataWithBaseURL(String baseUrl, String data,
++            String mimeType, String encoding, String historyUrl) {
++        super.loadDataWithBaseURL(baseUrl, getThemedData(data), mimeType, encoding, historyUrl);
++    }
++
++    private String getThemedData(String data) {
++        Context context = getContext();
++        if (context.getResources().getBoolean(R.bool.theme_webview)) {
++            setBackgroundColor(context.getColor(R.color.webview_bg));
++
++            String css = context.getString(R.string.webview_css);
++
++            String body = String.format("#%06X",
++                (0xFFFFFF & context.getColor(R.color.webview_body)));
++            String a_link = String.format("#%06X",
++                (0xFFFFFF & context.getColor(R.color.webview_a_link)));
++            String a_active = String.format("#%06X",
++                (0xFFFFFF & context.getColor(R.color.webview_a_active)));
++            String a_visited = String.format("#%06X",
++                (0xFFFFFF & context.getColor(R.color.webview_a_visited)));
++
++            css = css.replaceAll("\\?resources/body", body);
++            css = css.replaceAll("\\?resources/a_link", a_link);
++            css = css.replaceAll("\\?resources/a_active", a_active);
++            css = css.replaceAll("\\?resources/a_visited", a_visited);
++
++            return css + "\n" + data;
++        } else {
++            return data;
++        }
++    }
++}
++

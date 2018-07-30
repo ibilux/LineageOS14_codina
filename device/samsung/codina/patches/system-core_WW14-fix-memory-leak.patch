@@ -1,0 +1,16 @@
+ toolbox: fix memory leak
+
+free img
+
+diff --git a/toolbox/newfs_msdos.c b/toolbox/newfs_msdos.c
+index 79ca518..a9c061e 100644
+--- a/toolbox/newfs_msdos.c
++++ b/toolbox/newfs_msdos.c
+@@ -741,6 +741,7 @@ int newfs_msdos_main(int argc, char *argv[])
+                 exit(1);
+             }
+         }
++        free(img);
+     }
+     return 0;
+ }

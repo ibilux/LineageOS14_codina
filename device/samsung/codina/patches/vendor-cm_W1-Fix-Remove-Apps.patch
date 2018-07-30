@@ -1,0 +1,59 @@
+diff --git a/config/common.mk b/config/common.mk
+index 2fed3dd..448ce07 100644
+--- a/config/common.mk
++++ b/config/common.mk
+@@ -118,6 +118,7 @@ PRODUCT_PACKAGES += \
+ # Custom CM packages
+ PRODUCT_PACKAGES += \
+     AudioFX \
++    CMFileManager \
+     CMSettingsProvider \
+     LineageSetupWizard \
+     Eleven \
+diff --git a/config/common.mk b/config/common.mk
+index 2fed3dd..448cec7 100644
+--- a/config/common.mk
++++ b/config/common.mk
+@@ -126,7 +126,6 @@
+     Jelly \
+     LockClock \
+     Trebuchet \
+-    Updater \
+     WallpaperPicker \
+     WeatherProvider
+ 
+diff --git a/config/common.mk b/config/common.mk
+index 2fed3d0..448cec7 100644
+--- a/config/common.mk
++++ b/config/common.mk
+@@ -125,6 +125,7 @@ PRODUCT_PACKAGES += \
+     ExactCalculator \
+     Jelly \
+     LockClock \
++    SoundRecorder \
+     Trebuchet \
+     WallpaperPicker \
+     WeatherProvider
+diff --git a/config/common_full.mk b/config/common_full.mk
+index 2fed3d0..448ce77 100644
+--- a/config/common_full.mk
++++ b/config/common_full.mk
+@@ -3,6 +3,3 @@ PRODUCT_PACKAGES += \
+ 
+ PRODUCT_SIZE := full
+ 
+-# Recorder
+-PRODUCT_PACKAGES += \
+-    Recorder
+diff --git a/config/common.mk b/config/common.mk
+index 2fed3d0..448cec0 100644
+--- a/config/common.mk
++++ b/config/common.mk
+@@ -117,7 +117,6 @@
+ 
+ # Custom CM packages
+ PRODUCT_PACKAGES += \
+-    AudioFX \
+     CMFileManager \
+     CMSettingsProvider \
+     LineageSetupWizard \

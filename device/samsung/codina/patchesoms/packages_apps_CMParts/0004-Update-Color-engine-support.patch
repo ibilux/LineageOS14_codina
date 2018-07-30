@@ -1,0 +1,118 @@
+Subject: [PATCH] CMParts: Update Color engine
+
+diff --git a/res/layout/fragment_setup_triggers.xml b/res/layout/fragment_setup_triggers.xml
+index dcf0ac2..3acb5cd 100644
+--- a/res/layout/fragment_setup_triggers.xml
++++ b/res/layout/fragment_setup_triggers.xml
+@@ -29,7 +29,7 @@
+         android:layout_weight="1"
+         android:layout_width="match_parent"
+         android:layout_height="0dp"
+-        android:background="?android:attr/colorBackgroundFloating"
++        android:background="?android:attr/colorBackground"
+         android:gravity="center">
+         <android.support.v4.view.PagerTabStrip
+                 android:id="@+id/tabs"
+diff --git a/res/layout/switch_bar.xml b/res/layout/switch_bar.xml
+index 6cf6f76..cceaf34 100644
+--- a/res/layout/switch_bar.xml
++++ b/res/layout/switch_bar.xml
+@@ -35,8 +35,7 @@
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+             android:layout_gravity="center_vertical"
+-            android:background="@null"
+-            android:theme="@style/ThemeOverlay.SwitchBar" />
++            android:background="@null" />
+ 
+ </merge>
+ 
+diff --git a/res/values/colors.xml b/res/values/colors.xml
+index dc9c04f..7717bde 100644
+--- a/res/values/colors.xml
++++ b/res/values/colors.xml
+@@ -22,9 +22,9 @@
+ 
+     <color name="divider_color">#20ffffff</color>
+ 
+-    <color name="switchbar_background_color">#ff37474f</color>
++    <color name="switchbar_background_color">?android:attr/colorSecondary</color>
+     <color name="switchbar_text_color">#ffffffff</color>
+-    <color name="switch_accent_color">#ff7fcac3</color>
++    <color name="switch_accent_color">@*android:color/accent_device_default_light</color>
+ 
+     <color name="fab_ripple">#1fffffff</color><!-- 12% white -->
+     <color name="fab_shape">?android:attr/colorAccent</color>
+diff --git a/src/org/cyanogenmod/cmparts/profiles/SetupTriggersFragment.java b/src/org/cyanogenmod/cmparts/profiles/SetupTriggersFragment.java
+index 238beac..a00f844 100644
+--- a/src/org/cyanogenmod/cmparts/profiles/SetupTriggersFragment.java
++++ b/src/org/cyanogenmod/cmparts/profiles/SetupTriggersFragment.java
+@@ -19,9 +19,13 @@
+ import android.annotation.Nullable;
+ import android.app.ActionBar;
+ import android.app.Activity;
++import android.app.ThemeManager;
++import android.content.Context;
+ import android.content.Intent;
+ import android.content.pm.PackageManager;
++import android.content.res.TypedArray;
+ import android.os.Bundle;
++import android.provider.Settings.Secure;
+ import android.support.v4.view.PagerTabStrip;
+ import android.support.v4.view.ViewPager;
+ import android.view.LayoutInflater;
+@@ -44,6 +48,9 @@
+     TriggerPagerAdapter mAdapter;
+     boolean mNewProfileMode;
+     int mPreselectedItem;
++
++    private ThemeManager mThemeManager;
++    private int mAccentColor;
+ 
+     public static final String EXTRA_INITIAL_PAGE = "current_item";
+ 
+@@ -102,6 +109,14 @@
+     @Override
+     public View onCreateView(LayoutInflater inflater, ViewGroup container,
+             Bundle savedInstanceState) {
++        final TypedArray ta = getContext().obtainStyledAttributes(new int[]{
++            android.R.attr.colorAccent});
++        mAccentColor = ta.getColor(0, 0);
++        ta.recycle();
++
++        final int accentColor = Secure.getInt(getContentResolver(),
++                Secure.THEME_ACCENT_COLOR, 0);
++
+         // Inflate the layout for this fragment
+         View root = inflater.inflate(R.layout.fragment_setup_triggers, container, false);
+ 
+@@ -128,7 +143,15 @@
+         mPager.setAdapter(mAdapter);
+ 
+         PagerTabStrip tabs = (PagerTabStrip) root.findViewById(R.id.tabs);
+-        tabs.setTabIndicatorColorResource(R.color.theme_accent);
++        if (!ThemeManager.isOverlayEnabled()) {
++            if (accentColor != 0) {
++                tabs.setTabIndicatorColor(mAccentColor);
++            } else {
++                tabs.setTabIndicatorColorResource(R.color.theme_accent);
++            }
++        } else {
++            tabs.setTabIndicatorColorResource(R.color.theme_accent);
++        }
+ 
+         if (mNewProfileMode) {
+             showButtonBar(true);
+diff --git a/src/org/cyanogenmod/cmparts/profiles/SetupTriggersFragment.java b/src/org/cyanogenmod/cmparts/profiles/SetupTriggersFragment.java
+index 238beac..a00f844 100644
+--- a/src/org/cyanogenmod/cmparts/profiles/SetupTriggersFragment.java
++++ b/src/org/cyanogenmod/cmparts/profiles/SetupTriggersFragment.java
+@@ -143,7 +143,7 @@
+         mPager.setAdapter(mAdapter);
+ 
+         PagerTabStrip tabs = (PagerTabStrip) root.findViewById(R.id.tabs);
+-        if (!ThemeManager.isOverlayEnabled()) {
++        if (!ThemeManager.shouldOverlayEnabled(getContext())) {
+             if (accentColor != 0) {
+                 tabs.setTabIndicatorColor(mAccentColor);
+             } else {

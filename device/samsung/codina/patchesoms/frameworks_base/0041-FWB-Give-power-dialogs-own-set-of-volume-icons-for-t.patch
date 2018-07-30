@@ -1,0 +1,146 @@
+Subject: [PATCH 41/54] FWB: Give power dialogs own set of volume icons for themes
+
+diff --git a/core/res/res/drawable/ic_power_lock_ring.xml b/core/res/res/drawable/ic_power_lock_ring.xml
+new file mode 100644
+index 00000000000..6b2dcc4a675
+--- /dev/null
++++ b/core/res/res/drawable/ic_power_lock_ring.xml
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2017 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<selector xmlns:android="http://schemas.android.com/apk/res/android">
++    <item android:drawable="@drawable/ic_lock_ring" />
++</selector>
+diff --git a/core/res/res/drawable/ic_power_lock_dnd_total_silence.xml b/core/res/res/drawable/ic_power_lock_dnd_total_silence.xml
+new file mode 100644
+index 00000000000..dab250cc2d8
+--- /dev/null
++++ b/core/res/res/drawable/ic_power_lock_dnd_total_silence.xml
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2017 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<selector xmlns:android="http://schemas.android.com/apk/res/android">
++    <item android:drawable="@drawable/ic_lock_dnd_total_silence" />
++</selector>
+diff --git a/core/res/res/drawable/ic_power_lock_vibrate.xml b/core/res/res/drawable/ic_power_lock_vibrate.xml
+new file mode 100644
+index 00000000000..f278ccbf980
+--- /dev/null
++++ b/core/res/res/drawable/ic_power_lock_vibrate.xml
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2017 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<selector xmlns:android="http://schemas.android.com/apk/res/android">
++    <item android:drawable="@drawable/ic_lock_vibrate" />
++</selector>
+diff --git a/core/res/res/drawable/ic_power_lock_dnd_priority.xml b/core/res/res/drawable/ic_power_lock_dnd_priority.xml
+new file mode 100644
+index 00000000000..dab259cc2d8
+--- /dev/null
++++ b/core/res/res/drawable/ic_power_lock_dnd_priority.xml
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2017 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<selector xmlns:android="http://schemas.android.com/apk/res/android">
++    <item android:drawable="@drawable/ic_lock_dnd_priority" />
++</selector>
+diff --git a/core/res/res/layout/global_actions_silent_mode.xml b/core/res/res/layout/global_actions_silent_mode.xml
+index a3586232a15..3fe7bbec960 100644
+--- a/core/res/res/layout/global_actions_silent_mode.xml
++++ b/core/res/res/layout/global_actions_silent_mode.xml
+@@ -37,7 +37,7 @@
+             android:layout_marginEnd="8dp"
+             android:layout_marginTop="6dp"
+             android:layout_marginBottom="6dp"
+-            android:src="@drawable/ic_lock_dnd_total_silence"
++            android:src="@drawable/ic_power_lock_dnd_total_silence"
+             android:scaleType="center"
+             android:duplicateParentState="true"
+             android:background="@drawable/silent_mode_indicator"
+@@ -66,7 +66,7 @@
+             android:layout_marginEnd="8dp"
+             android:layout_marginTop="6dp"
+             android:layout_marginBottom="6dp"
+-            android:src="@drawable/ic_lock_dnd_priority"
++            android:src="@drawable/ic_power_lock_dnd_priority"
+             android:scaleType="center"
+             android:duplicateParentState="true"
+             android:background="@drawable/silent_mode_indicator"
+@@ -95,7 +95,7 @@
+             android:layout_marginEnd="8dp"
+             android:layout_marginTop="6dp"
+             android:layout_marginBottom="6dp"
+-            android:src="@drawable/ic_lock_vibrate"
++            android:src="@drawable/ic_power_lock_vibrate"
+             android:scaleType="center"
+             android:duplicateParentState="true"
+             android:background="@drawable/silent_mode_indicator"
+@@ -124,7 +124,7 @@
+             android:layout_marginEnd="8dp"
+             android:layout_marginTop="6dp"
+             android:layout_marginBottom="6dp"
+-            android:src="@drawable/ic_lock_ring"
++            android:src="@drawable/ic_power_lock_ring"
+             android:scaleType="center"
+             android:duplicateParentState="true"
+             android:background="@drawable/silent_mode_indicator"

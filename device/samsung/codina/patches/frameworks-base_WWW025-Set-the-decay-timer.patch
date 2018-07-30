@@ -1,0 +1,27 @@
+Subject: [PATCH] Set the decay timer for all forked apps.
+
+This will cause native memory frees to be less expensive, but it will cost
+a bit of PSS that might hang around.
+
+diff --git a/core/jni/com_android_internal_os_Zygote.cpp b/core/jni/com_android_internal_os_Zygote.cpp
+index 6000fb5..d73e7dd 100644
+--- a/core/jni/com_android_internal_os_Zygote.cpp
++++ b/core/jni/com_android_internal_os_Zygote.cpp
+@@ -27,6 +27,7 @@
+ #include <fcntl.h>
+ #include <grp.h>
+ #include <inttypes.h>
++#include <malloc.h>
+ #include <mntent.h>
+ #include <paths.h>
+ #include <signal.h>
+@@ -491,6 +492,9 @@
+     // The child process.
+     gMallocLeakZygoteChild = 1;
+ 
++    // Set the jemalloc decay time to 1.
++    mallopt(M_DECAY_TIME, 1);
++
+     // Clean up any descriptors which must be closed immediately
+     DetachDescriptors(env, fdsToClose);
+ 

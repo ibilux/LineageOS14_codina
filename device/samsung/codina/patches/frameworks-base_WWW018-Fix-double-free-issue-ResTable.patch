@@ -1,0 +1,25 @@
+Subject: [PATCH] Fix double free issue in ResTable.
+The race condition is:
+ 1.FinalizerDaemon thread call AssetManager.destroy() to
+  delete 'AssetManager' and it's member 'ResTable* mResources';
+  In ResTable's destructor, will delete it's member 'vector<PackageGroup*> mPackageGroups',
+  and finally call clearBagCache() to free 'typeCacheEntries'(the member of PackageGroup);
+
+ 2.Another thread call AssetManager.setConfiguration,
+  and will call function ResTable::setParameters(const ResTable_config* params).
+  In this funcion will traverse 'mPackageGroups' and call function clearBagCache() of every PackageGroup;
+  also free the member 'typeCacheEntries'.
+
+diff --git a/libs/androidfw/ResourceTypes.cpp b/libs/androidfw/ResourceTypes.cpp
+index 38d2a58..50078eb 100644
+--- a/libs/androidfw/ResourceTypes.cpp
++++ b/libs/androidfw/ResourceTypes.cpp
+@@ -3927,6 +3927,8 @@ status_t ResTable::getError() const
+ 
+ void ResTable::uninit()
+ {
++    AutoMutex _lock(mLock);
++
+     mError = NO_INIT;
+     size_t N = mPackageGroups.size();
+     for (size_t i=0; i<N; i++) {

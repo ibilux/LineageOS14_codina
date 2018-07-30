@@ -1,0 +1,84 @@
+ Themes: Expose nav bar tuner colors
+
+PS2 Change to the actual color in fwb that this attr calls to.
+
+diff --git a/packages/SystemUI/res/layout-land/nav_bar_tuner.xml b/packages/SystemUI/res/layout-land/nav_bar_tuner.xml
+index 212b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/res/layout-land/nav_bar_tuner.xml
++++ b/packages/SystemUI/res/layout-land/nav_bar_tuner.xml
+@@ -28,7 +28,7 @@
+         android:paddingBottom="12dp"
+         android:paddingStart="8dp"
+         android:paddingEnd="8dp"
+-        android:background="@android:color/white"
++        android:background="@color/navbar_tuner_background_color"
+         android:gravity="center"
+         android:orientation="vertical">
+ 
+@@ -38,7 +38,7 @@
+             android:text="@string/preview"
+             android:paddingStart="8dp"
+             android:paddingEnd="8dp"
+-            android:textColor="?android:attr/colorAccent"
++            android:textColor="@color/navbar_tuner_text_color"
+             android:textAppearance="?android:attr/textAppearanceMedium" />
+ 
+         <FrameLayout
+diff --git a/packages/SystemUI/res/layout-sw600dp-land/nav_bar_tuner.xml b/packages/SystemUI/res/layout-sw600dp-land/nav_bar_tuner.xml
+index 222b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/res/layout-sw600dp-land/nav_bar_tuner.xml
++++ b/packages/SystemUI/res/layout-sw600dp-land/nav_bar_tuner.xml
+@@ -29,7 +29,7 @@
+         android:paddingStart="12dp"
+         android:paddingEnd="12dp"
+         android:layout_gravity="bottom"
+-        android:background="@android:color/white"
++        android:background="@color/navbar_tuner_background_color"
+         android:gravity="center"
+         android:orientation="vertical">
+ 
+@@ -39,7 +39,7 @@
+             android:text="@string/preview"
+             android:paddingTop="8dp"
+             android:paddingBottom="8dp"
+-            android:textColor="?android:attr/colorAccent"
++            android:textColor="@color/navbar_tuner_text_color"
+             android:textAppearance="?android:attr/textAppearanceLarge" />
+ 
+         <FrameLayout
+diff --git a/packages/SystemUI/res/layout/nav_bar_tuner.xml b/packages/SystemUI/res/layout/nav_bar_tuner.xml
+index 232b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/res/layout/nav_bar_tuner.xml
++++ b/packages/SystemUI/res/layout/nav_bar_tuner.xml
+@@ -29,7 +29,7 @@
+         android:paddingStart="12dp"
+         android:paddingEnd="12dp"
+         android:layout_gravity="bottom"
+-        android:background="@android:color/white"
++        android:background="@color/navbar_tuner_background_color"
+         android:gravity="center"
+         android:orientation="vertical">
+ 
+@@ -39,7 +39,7 @@
+             android:text="@string/preview"
+             android:paddingTop="8dp"
+             android:paddingBottom="8dp"
+-            android:textColor="?android:attr/colorAccent"
++            android:textColor="@color/navbar_tuner_text_color"
+             android:textAppearance="?android:attr/textAppearanceLarge" />
+ 
+         <FrameLayout
+
+diff --git a/packages/SystemUI/res/values/projekt_colors.xml b/packages/SystemUI/res/values/projekt_colors.xml
+index 342b6a74aed..62d24ecc56a 100644
+--- a/packages/SystemUI/res/values/projekt_colors.xml
++++ b/packages/SystemUI/res/values/projekt_colors.xml
+@@ -40,3 +40,8 @@
+     <!-- Separate QS text label tint from icon tint -->
+     <color name="qs_tile_label_tint_unavailable">@color/qs_tile_tint_unavailable</color>
++
++    <!-- Nav bar tuner colors -->
++    <color name="navbar_tuner_background_color">@android:color/white</color>
++    <color name="navbar_tuner_text_color">@*android:color/material_deep_teal_500</color>
++
+ </resources>

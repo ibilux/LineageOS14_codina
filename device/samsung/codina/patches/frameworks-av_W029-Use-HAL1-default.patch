@@ -1,0 +1,23 @@
+Subject: [PATCH] Camera: Use HAL1 by default
+
+ * Many apps don't play well with HAL3, but if we completely disable it,
+   some apps which depend on it will be broken, so use HAL1 unless HAL3 is
+   explicitly requested by the client.
+ * Taken from OnePlusOSS framework.
+
+diff --git a/services/camera/libcameraservice/CameraService.h b/services/camera/libcameraservice/CameraService.h
+index 8bcb91a..2901027 100644
+--- a/services/camera/libcameraservice/CameraService.h
++++ b/services/camera/libcameraservice/CameraService.h
+@@ -831,6 +831,11 @@
+ 
+     int originalClientPid = 0;
+ 
++    //if the upper layer does not assign HAL version with API 1, then set HAL1 by default
++    if (effectiveApiLevel == API_1 && halVersion == CAMERA_HAL_API_VERSION_UNSPECIFIED) {
++        halVersion = CAMERA_DEVICE_API_VERSION_1_0;
++    }
++
+     ALOGI("CameraService::connect call (PID %d \"%s\", camera ID %s) for HAL version %s and "
+             "Camera API version %d", clientPid, clientName8.string(), cameraId.string(),
+             (halVersion == -1) ? "default" : std::to_string(halVersion).c_str(),

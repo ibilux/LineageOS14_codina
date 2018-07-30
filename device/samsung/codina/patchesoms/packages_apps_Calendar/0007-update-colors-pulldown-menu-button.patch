@@ -1,0 +1,36 @@
+calendar: update general colors pulldown_menu_button
+
+diff --git a/res/layout/actionbar_pulldown_menu_button.xml b/res/layout/actionbar_pulldown_menu_button.xml
+index 509ddb1367..74018b214b 100644
+--- a/res/layout/actionbar_pulldown_menu_button.xml
++++ b/res/layout/actionbar_pulldown_menu_button.xml
+@@ -26,15 +26,15 @@
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content"
+         android:textSize="18sp"
+-        android:textColor="@color/calendar_view_switch_menu_text_color"
++        android:textColor="@color/calendar_view_md_switch_menu_text_color"
+         android:layout_weight="1" />
+ 
+     <TextView android:id="@+id/button_date"
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content"
+         android:layout_marginLeft="8dip"
+         android:layout_marginRight="16dip"
+-        android:textColor="@color/calendar_view_switch_menu_text_color_light"
++        android:textColor="@color/calendar_view_md_switch_menu_text_color_light"
+         android:textSize="14sp" />
+ </LinearLayout>
+ 
+diff --git a/res/values/colors.xml b/res/values/colors.xml
+index 515dd5ce06..7836644806 100644
+--- a/res/values/colors.xml
++++ b/res/values/colors.xml
+@@ -204,4 +204,7 @@
+     <color name="accent_dark">#0d79ba</color>
+     <color name="white">#ffffffff</color>
+ 
++    <color name="calendar_view_md_switch_menu_text_color">#FF666666</color>
++    <color name="calendar_view_md_switch_menu_text_color_light">#FF666666</color>
++
+ </resources>

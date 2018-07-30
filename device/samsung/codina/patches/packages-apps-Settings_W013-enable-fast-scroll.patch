@@ -1,0 +1,38 @@
+Subject: [PATCH] Settings: enable fast scroll for all app list views
+Why? - Why not?
+
+diff --git a/res/layout/manage_applications_apps.xml b/res/layout/manage_applications_apps.xml
+index e4ec871..d52671d 100644
+--- a/res/layout/manage_applications_apps.xml
++++ b/res/layout/manage_applications_apps.xml
+@@ -51,7 +51,7 @@
+                         android:layout_height="match_parent"
+                         android:gravity="center"
+                         android:text="@string/no_applications"
+-                        android:textAppearance="?android:attr/textAppearanceLarge" />
++                        android:textAppearance="?android:attr/textAppearanceMedium" />
+ 
+             </FrameLayout>
+ 
+diff --git a/src/com/android/settings/applications/ManageApplications.java b/src/com/android/settings/applications/ManageApplications.java
+index 11a92f4..d70a763 100644
+--- a/src/com/android/settings/applications/ManageApplications.java
++++ b/src/com/android/settings/applications/ManageApplications.java
+@@ -397,7 +397,7 @@
+             case LIST_TYPE_STORAGE:
+                 return mSortOrder == R.id.sort_order_alpha;
+             default:
+-                return false;
++                return true;
+         }
+     }
+ 
+@@ -966,7 +966,7 @@
+         }
+ 
+         private void rebuildSections() {
+-            if (mEntries!= null && mManageApplications.mListView.isFastScrollEnabled()) {
++            if (mEntries!= null && mManageApplications.isFastScrollEnabled()) {
+                 // Rebuild sections
+                 if (mIndex == null) {
+                     LocaleList locales = mContext.getResources().getConfiguration().getLocales();

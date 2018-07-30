@@ -1,0 +1,28 @@
+Subject: [PATCH] remove the lock-use for prunePrintService in case blocking main thread
+
+the lock object is removed when calling RemotePrintSpooler
+and so as it in the method prunePrintService(). But in the
+constructor of UserState, the mLock is still held when calling
+prunePrintService(), it may also block the main thread
+
+It is better to take it out of the synchronized block
+
+diff --git a/services/print/java/com/android/server/print/UserState.java b/services/print/java/com/android/server/print/UserState.java
+index a91cdb3..d98d2c6 100644
+--- a/services/print/java/com/android/server/print/UserState.java
++++ b/services/print/java/com/android/server/print/UserState.java
+@@ -154,10 +154,12 @@
+             readInstalledPrintServicesLocked();
+             upgradePersistentStateIfNeeded();
+             readDisabledPrintServicesLocked();
++        }
+ 
+-            // Some print services might have gotten installed before the User State came up
+-            prunePrintServices();
++        // Some print services might have gotten installed before the User State came up
++        prunePrintServices();
+ 
++        synchronized (mLock) {
+             onConfigurationChangedLocked();
+         }
+     }

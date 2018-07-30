@@ -1,0 +1,76 @@
+Subject: [PATCH] Fix issues crashing with Fatal signal when calling getFormat
+
+when playing multimedia file, GenericSource::getTrackInfo run in the
+NuPlayerDriver thread, and GenericSource::getFormatMeta run in the
+Generic thread. they would access the critical resource which is
+mMetaData in IMediaSource. There is no lock to protect mMetaData.
+Occasionally, SIGSEGV occurs when mMetaData point to a new object.
+
+Instead getting trackInfo in Generic thread.
+
+diff --git a/media/libmediaplayerservice/nuplayer/GenericSource.cpp b/media/libmediaplayerservice/nuplayer/GenericSource.cpp
+index 6b88404..57a7286 100644
+--- a/media/libmediaplayerservice/nuplayer/GenericSource.cpp
++++ b/media/libmediaplayerservice/nuplayer/GenericSource.cpp
+@@ -698,6 +698,12 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
+           break;
+       }
+ 
++      case kWhatGetTrackInfo:
++      {
++          onGetTrackInfo(msg);
++          break;
++      }
++
+       case kWhatSelectTrack:
+       {
+           onSelectTrack(msg);
+@@ -967,6 +973,34 @@ size_t NuPlayer::GenericSource::getTrackCount() const {
+ }
+ 
+ sp<AMessage> NuPlayer::GenericSource::getTrackInfo(size_t trackIndex) const {
++    sp<AMessage> msg = new AMessage(kWhatGetTrackInfo, this);
++    msg->setSize("trackIndex", trackIndex);
++
++    sp<AMessage> response;
++    sp<RefBase> format;
++    status_t err = msg->postAndAwaitResponse(&response);
++    if (err == OK && response != NULL) {
++        CHECK(response->findObject("format", &format));
++        return static_cast<AMessage*>(format.get());
++    } else {
++        return NULL;
++    }
++}
++
++void NuPlayer::GenericSource::onGetTrackInfo(sp<AMessage> msg) const {
++    size_t trackIndex;
++    CHECK(msg->findSize("trackIndex", &trackIndex));
++
++    sp<AMessage> response = new AMessage;
++    sp<AMessage> format = doGetTrackInfo(trackIndex);
++    response->setObject("format", format);
++
++    sp<AReplyToken> replyID;
++    CHECK(msg->senderAwaitsResponse(&replyID));
++    response->postReply(replyID);
++}
++
++sp<AMessage> NuPlayer::GenericSource::doGetTrackInfo(size_t trackIndex) const {
+     size_t trackCount = mSources.size();
+     if (trackIndex >= trackCount) {
+         return NULL;
+diff --git a/media/libmediaplayerservice/nuplayer/GenericSource.h b/media/libmediaplayerservice/nuplayer/GenericSource.h
+index 0957778..e92a2ae 100644
+--- a/media/libmediaplayerservice/nuplayer/GenericSource.h
++++ b/media/libmediaplayerservice/nuplayer/GenericSource.h
+@@ -253,6 +253,9 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
+     void onGetFormatMeta(sp<AMessage> msg) const;
+     sp<MetaData> doGetFormatMeta(bool audio) const;
+ 
++    void onGetTrackInfo(sp<AMessage> msg) const;
++    sp<AMessage> doGetTrackInfo(size_t trackIndex) const;
++
+     void onGetSelectedTrack(sp<AMessage> msg) const;
+     ssize_t doGetSelectedTrack(media_track_type type) const;
+ 

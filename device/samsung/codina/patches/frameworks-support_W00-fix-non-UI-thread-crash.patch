@@ -1,0 +1,20 @@
+FSubject: [PATCH] fix non-UI thread crash
+
+diff --git a/compat/java/android/support/v4/view/ViewCompat.java b/compat/java/android/support/v4/view/ViewCompat.java
+index 434b850..15ee774 100644
+--- a/compat/java/android/support/v4/view/ViewCompat.java
++++ b/compat/java/android/support/v4/view/ViewCompat.java
+@@ -541,11 +541,11 @@
+         }
+         @Override
+         public void postInvalidateOnAnimation(View view) {
+-            view.invalidate();
++            view.postInvalidate();
+         }
+         @Override
+         public void postInvalidateOnAnimation(View view, int left, int top, int right, int bottom) {
+-            view.invalidate(left, top, right, bottom);
++            view.postInvalidate(left, top, right, bottom);
+         }
+         @Override
+         public void postOnAnimation(View view, Runnable action) {

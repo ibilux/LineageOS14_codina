@@ -1,0 +1,106 @@
+Subject: [PATCH] PackageInstallerActivity: Add Color engine support
+
+diff --git a/res/values/hnt_themes.xml b/res/values/hnt_themes.xml
+index 06219e92..ee775856 100644
+--- a/res/values/hnt_themes.xml
++++ b/res/values/hnt_themes.xml
+@@ -20,4 +20,24 @@
+         <item name="android:windowAnimationStyle">@*android:style/Animation.Material.Dialog</item>
+     </style>
+ 
++    <style name="packageinstaller_pixel_theme_light">
++        <item name="android:windowActionBar">false</item>
++        <item name="android:windowNoTitle">true</item>
++        <item name="android:textAppearanceMedium">@style/MediumText</item>
++        <item name="android:textAppearanceSmall">@style/SmallText</item>
++        <item name="android:titleTextStyle">@style/TitleText</item>
++        <item name="android:colorPrimary">@*android:color/primary_material_light</item>
++        <item name="android:colorPrimaryDark">@*android:color/primary_dark_material_light</item>
++        <item name="android:textColorPrimary">@color/pixel_primary_color</item>
++    </style>
++
++    <style name="packageinstaller_pixel_theme_dark">
++        <item name="android:windowActionBar">false</item>
++        <item name="android:windowNoTitle">true</item>
++        <item name="android:textAppearanceMedium">@style/MediumText</item>
++        <item name="android:textAppearanceSmall">@style/SmallText</item>
++        <item name="android:titleTextStyle">@style/TitleText</item>
++        <item name="android:textColorPrimary">@android:color/white</item>
++    </style>
++
+ </resources>
+diff --git a/src/com/android/packageinstaller/PackageInstallerActivity.java b/src/com/android/packageinstaller/PackageInstallerActivity.java
+index 56363f22..a5e4ba0d 100644
+--- a/src/com/android/packageinstaller/PackageInstallerActivity.java
++++ b/src/com/android/packageinstaller/PackageInstallerActivity.java
+@@ -19,6 +19,8 @@
+ import android.app.ActivityManagerNative;
+ import android.app.AlertDialog;
+ import android.app.Dialog;
++import android.app.IThemeCallback;
++import android.app.ThemeManager;
+ import android.content.Context;
+ import android.content.DialogInterface;
+ import android.content.DialogInterface.OnCancelListener;
+@@ -36,6 +38,8 @@
+ import android.os.AsyncTask;
+ import android.os.Build;
+ import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
+ import android.os.Process;
+ import android.os.UserManager;
+ import android.provider.Settings;
+@@ -121,6 +125,9 @@
+     private static final int DLG_ADMIN_RESTRICTS_UNKNOWN_SOURCES = DLG_BASE + 6;
+     private static final int DLG_NOT_SUPPORTED_ON_WEAR = DLG_BASE + 7;
+ 
++    private int mTheme;
++    private ThemeManager mThemeManager;
++
+     private void startInstallConfirm() {
+         ((TextView) findViewById(R.id.install_confirm_question))
+                 .setText(R.string.install_confirm_question);
+@@ -423,8 +430,42 @@ void setPmResult(int pmResult) {
+                 ? RESULT_OK : RESULT_FIRST_USER, result);
+     }
+ 
++    private final IThemeCallback mThemeCallback = new IThemeCallback.Stub() {
++
++        @Override
++        public void onThemeChanged(int themeMode, int color) {
++            onCallbackAdded(themeMode, color);
++            PackageInstallerActivity.this.runOnUiThread(() -> {
++                PackageInstallerActivity.this.recreate();
++            });
++        }
++
++        @Override
++        public void onCallbackAdded(int themeMode, int color) {
++            mTheme = color;
++        }
++    };
++
+     @Override
+     protected void onCreate(Bundle icicle) {
++        final int themeMode = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_PRIMARY_COLOR, 0);
++        final int accentColor = Settings.Secure.getInt(getContentResolver(),
++                Settings.Secure.THEME_ACCENT_COLOR, 0);
++        mThemeManager = (ThemeManager) getSystemService(Context.THEME_SERVICE);
++        if (mThemeManager != null) {
++            mThemeManager.addCallback(mThemeCallback);
++        }
++        if (themeMode != 0 || accentColor != 0) {
++            getTheme().applyStyle(mTheme, true);
++        }
++        if (themeMode == 0 || themeMode == 2) {
++            getTheme().applyStyle(R.style.packageinstaller_pixel_theme_light, true);
++        }
++        if (themeMode == 1 || themeMode == 3) {
++            getTheme().applyStyle(R.style.packageinstaller_pixel_theme_dark, true);
++        }
++
+         super.onCreate(icicle);
+ 
+         mPm = getPackageManager();

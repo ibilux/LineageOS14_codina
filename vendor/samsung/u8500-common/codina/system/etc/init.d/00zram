@@ -1,0 +1,10 @@
+#!/system/bin/sh -x
+
+SIZE=90
+
+echo $(($SIZE * 1024 * 1024)) > /sys/devices/virtual/block/zram0/disksize
+
+mkswap /dev/block/zram0
+swapon  /dev/block/zram0
+
+echo 40 > /proc/sys/vm/swappiness
